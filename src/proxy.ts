@@ -9,7 +9,9 @@ const PROTECTED_ROUTES = [
   "/community",
 ];
 
-export async function proxy(request: NextRequest) {
+const AUTH_ROUTES = ["/login", "/signup"];
+
+export default async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
 
@@ -27,7 +29,7 @@ export async function proxy(request: NextRequest) {
               ...options,
               httpOnly: true,
               secure: process.env.NODE_ENV === "production",
-              sameSite: "strict",
+              // SameSite=Lax required — Strict breaks OAuth cross-site redirects.
             })
           );
         },
@@ -42,12 +44,20 @@ export async function proxy(request: NextRequest) {
   const isProtected = PROTECTED_ROUTES.some((route) =>
     path.startsWith(route)
   );
+  const isAuthRoute = AUTH_ROUTES.some((route) => path === route);
 
+  // Not logged in → send to login
   if (isProtected && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if ((path === "/login" || path === "/register") && user) {
+  // Logged in but email not verified → send to verify-email
+  if (isProtected && user && !user.email_confirmed_at) {
+    return NextResponse.redirect(new URL("/verify-email", request.url));
+  }
+
+  // Already logged in and verified → skip auth pages
+  if (isAuthRoute && user && user.email_confirmed_at) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

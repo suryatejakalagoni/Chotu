@@ -19,7 +19,8 @@ export async function createClient() {
                 ...options,
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
-                sameSite: "strict",
+                // SameSite=Lax (Supabase default) is required for OAuth redirects.
+                // Strict blocks the code-verifier cookie on cross-site navigations.
               })
             );
           } catch {
