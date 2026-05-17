@@ -12,9 +12,14 @@ export default async function VerifyEmailPage() {
 
   return (
     <div className="text-center space-y-4">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
+      {/* Icon */}
+      <div
+        className="mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+        style={{ background: '#2C3531' }}
+      >
         <svg
-          className="h-6 w-6 text-blue-600"
+          className="h-6 w-6"
+          style={{ color: '#F5A623' }}
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth="1.5"
@@ -28,17 +33,19 @@ export default async function VerifyEmailPage() {
         </svg>
       </div>
 
-      <h2 className="text-xl font-semibold text-gray-900">Check your inbox</h2>
+      <h2 className="text-xl font-semibold" style={{ color: '#F5F5F0' }}>
+        Check your inbox
+      </h2>
 
-      <p className="text-sm text-gray-500">
+      <p className="text-sm" style={{ color: '#9ca3af' }}>
         We sent a confirmation link to{' '}
-        <span className="font-medium text-gray-700">
+        <span className="font-medium" style={{ color: '#F5F5F0' }}>
           {user?.email ?? 'your email'}
         </span>
         . Click it to activate your account.
       </p>
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs" style={{ color: '#6b7280' }}>
         Didn&apos;t get it? Check your spam folder.
       </p>
 
@@ -46,7 +53,8 @@ export default async function VerifyEmailPage() {
         <form action={resendVerification}>
           <button
             type="submit"
-            className="text-sm font-medium text-blue-600 hover:underline"
+            className="text-sm font-medium hover:underline"
+            style={{ color: '#F5A623' }}
           >
             Resend confirmation email
           </button>
@@ -56,7 +64,8 @@ export default async function VerifyEmailPage() {
       <div className="pt-2">
         <a
           href="/login"
-          className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-sm transition-colors hover:underline"
+          style={{ color: '#6b7280' }}
         >
           Back to log in
         </a>

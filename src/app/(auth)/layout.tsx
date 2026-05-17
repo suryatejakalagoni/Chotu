@@ -4,13 +4,32 @@ export default function AuthLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
+    <div
+      className="min-h-screen flex items-center justify-center px-4 py-12"
+      style={{ background: '#0F0F0F' }}
+    >
       <div className="w-full max-w-md">
+        {/* Wordmark */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900">CHOTU</h1>
-          <p className="mt-1 text-sm text-gray-500">Your classmate companion</p>
+          <span
+            className="text-4xl font-black tracking-widest"
+            style={{ color: '#F5A623', letterSpacing: '0.18em' }}
+          >
+            CHOTU
+          </span>
+          <p className="mt-1 text-sm" style={{ color: '#9ca3af' }}>
+            Your batch&apos;s command center
+          </p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+
+        {/* Card */}
+        <div
+          className="rounded-2xl border p-8"
+          style={{
+            background: '#161616',
+            borderColor: '#2a2a2a',
+          }}
+        >
           {children}
         </div>
       </div>
