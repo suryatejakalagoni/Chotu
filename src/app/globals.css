@@ -128,3 +128,49 @@
     @apply font-sans;
   }
 }
+
+/* ── Landing page cinema animations ─────────────────────────────── */
+
+@keyframes chotu-slam-up {
+  from {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes chotu-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chotu-nav-animate {
+  animation: chotu-fade-up 0.35s ease 0s both;
+}
+
+.chotu-slam-1 {
+  display: block;
+  animation: chotu-slam-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+.chotu-slam-2 {
+  display: block;
+  animation: chotu-slam-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.32s both;
+}
+
+.chotu-sub-animate {
+  animation: chotu-fade-up 0.4s ease 0.58s both;
+}
+
+.chotu-cta-animate {
+  animation: chotu-fade-up 0.4s ease 0.72s both;
+}

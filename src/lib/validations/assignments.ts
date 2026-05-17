@@ -11,16 +11,17 @@ export const ALLOWED_MIME_TYPES = [
 
 export const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.docx', '.txt', '.md']
 
-export const MAX_FILE_SIZE = 50 * 1024 * 1024         // 50 MB per file (Supabase free tier cap)
+export const MAX_FILE_SIZE = 50 * 1024 * 1024
 export const MAX_ATTACHMENTS_PER_ASSIGNMENT = 5
-export const USER_STORAGE_LIMIT = 300 * 1024 * 1024  // 300 MB per user
+export const USER_STORAGE_LIMIT = 300 * 1024 * 1024
 
 const dateField = z
   .string()
   .min(1, 'Date is required')
   .refine((v) => !isNaN(Date.parse(v)), 'Invalid date')
 
-export const assignmentCreateSchema = z.object({
+// Base object without refinement — lets us call .partial() for update schema
+const assignmentBaseSchema = z.object({
   subject:           z.string().min(1, 'Subject is required').max(100).trim(),
   title:             z.string().min(1, 'Title is required').max(200).trim(),
   description:       z.string().max(2000).trim().optional(),
@@ -31,14 +32,20 @@ export const assignmentCreateSchema = z.object({
   notes:             z.string().max(5000).trim().optional(),
   is_recurring:      z.boolean(),
   recurrence_rule:   z.string().optional(),
-}).refine(
+})
+
+export const assignmentCreateSchema = assignmentBaseSchema.refine(
   (d) => !d.is_recurring || !!d.recurrence_rule,
-  { message: 'Recurrence rule is required when recurring', path: ['recurrence_rule'] }
+  { message: 'Recurrence rule is required when recurring', path: ['recurrence_rule'] },
 )
 
-export const assignmentUpdateSchema = assignmentCreateSchema
+export const assignmentUpdateSchema = assignmentBaseSchema
   .partial()
   .extend({ id: z.string().uuid() })
+  .refine(
+    (d) => d.is_recurring === undefined || !d.is_recurring || !!d.recurrence_rule,
+    { message: 'Recurrence rule is required when recurring', path: ['recurrence_rule'] },
+  )
 
 export const statusTransitionSchema = z.object({
   id:     z.string().uuid(),
@@ -67,8 +74,8 @@ export const attachmentMetaSchema = z.object({
     .refine((e) => ALLOWED_EXTENSIONS.includes(e.toLowerCase()), 'Extension not allowed'),
 })
 
-export type AssignmentCreate   = z.infer<typeof assignmentCreateSchema>
-export type AssignmentUpdate   = z.infer<typeof assignmentUpdateSchema>
-export type StatusTransition   = z.infer<typeof statusTransitionSchema>
-export type ReminderInput      = z.infer<typeof reminderSchema>
-export type AttachmentMeta     = z.infer<typeof attachmentMetaSchema>
+export type AssignmentCreate = z.infer<typeof assignmentCreateSchema>
+export type AssignmentUpdate = z.infer<typeof assignmentUpdateSchema>
+export type StatusTransition = z.infer<typeof statusTransitionSchema>
+export type ReminderInput    = z.infer<typeof reminderSchema>
+export type AttachmentMeta   = z.infer<typeof attachmentMetaSchema>

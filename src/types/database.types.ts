@@ -304,6 +304,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          deleted_at: string | null
           id: string
           parent_id: string | null
           post_id: string
@@ -313,6 +314,7 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           parent_id?: string | null
           post_id: string
@@ -322,6 +324,7 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           parent_id?: string | null
           post_id?: string
@@ -347,31 +350,52 @@ export type Database = {
       }
       community_posts: {
         Row: {
-          category: string
-          content: string
+          content_type: string
           created_at: string
+          deleted_at: string | null
+          description: string | null
+          download_count: number
+          expires_at: string | null
+          external_url: string | null
           id: string
+          is_anonymous: boolean
           is_pinned: boolean
+          storage_key: string | null
+          subject_tag: string | null
           title: string
           updated_at: string
           user_id: string
         }
         Insert: {
-          category?: string
-          content: string
+          content_type?: string
           created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          download_count?: number
+          expires_at?: string | null
+          external_url?: string | null
           id?: string
+          is_anonymous?: boolean
           is_pinned?: boolean
+          storage_key?: string | null
+          subject_tag?: string | null
           title: string
           updated_at?: string
           user_id: string
         }
         Update: {
-          category?: string
-          content?: string
+          content_type?: string
           created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          download_count?: number
+          expires_at?: string | null
+          external_url?: string | null
           id?: string
+          is_anonymous?: boolean
           is_pinned?: boolean
+          storage_key?: string | null
+          subject_tag?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -434,13 +458,13 @@ export type Database = {
           created_at: string
           post_id: string
           user_id: string
-          value: number
+          value: number  // 1 = upvote, -1 = downvote
         }
         Insert: {
           created_at?: string
           post_id: string
           user_id: string
-          value?: number
+          value: number
         }
         Update: {
           created_at?: string
@@ -504,7 +528,8 @@ export type Database = {
           created_at: string
           exam_id: string
           id: string
-          remind_at: string
+          trigger_at: string
+          reminder_type: Database["public"]["Enums"]["reminder_type"] | null
           sent: boolean
           user_id: string
         }
@@ -512,7 +537,8 @@ export type Database = {
           created_at?: string
           exam_id: string
           id?: string
-          remind_at: string
+          trigger_at: string
+          reminder_type?: Database["public"]["Enums"]["reminder_type"] | null
           sent?: boolean
           user_id: string
         }
@@ -520,7 +546,8 @@ export type Database = {
           created_at?: string
           exam_id?: string
           id?: string
-          remind_at?: string
+          trigger_at?: string
+          reminder_type?: Database["public"]["Enums"]["reminder_type"] | null
           sent?: boolean
           user_id?: string
         }
@@ -537,26 +564,29 @@ export type Database = {
       exam_topics: {
         Row: {
           created_at: string
-          done: boolean
+          is_revised: boolean
+          revised_at: string | null
           exam_id: string
           id: string
-          title: string
+          topic_text: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          done?: boolean
+          is_revised?: boolean
+          revised_at?: string | null
           exam_id: string
           id?: string
-          title: string
+          topic_text: string
           user_id: string
         }
         Update: {
           created_at?: string
-          done?: boolean
+          is_revised?: boolean
+          revised_at?: string | null
           exam_id?: string
           id?: string
-          title?: string
+          topic_text?: string
           user_id?: string
         }
         Relationships: [
@@ -575,45 +605,51 @@ export type Database = {
           created_at: string
           duration_min: number | null
           exam_at: string
+          exam_type: string | null
           id: string
-          location: string | null
           notes: string | null
           score: string | null
           status: Database["public"]["Enums"]["exam_status"]
           subject: string
+          syllabus_text: string | null
           title: string
           updated_at: string
           user_id: string
+          venue: string | null
         }
         Insert: {
           archived_at?: string | null
           created_at?: string
           duration_min?: number | null
           exam_at: string
+          exam_type?: string | null
           id?: string
-          location?: string | null
           notes?: string | null
           score?: string | null
           status?: Database["public"]["Enums"]["exam_status"]
           subject: string
+          syllabus_text?: string | null
           title: string
           updated_at?: string
           user_id: string
+          venue?: string | null
         }
         Update: {
           archived_at?: string | null
           created_at?: string
           duration_min?: number | null
           exam_at?: string
+          exam_type?: string | null
           id?: string
-          location?: string | null
           notes?: string | null
           score?: string | null
           status?: Database["public"]["Enums"]["exam_status"]
           subject?: string
+          syllabus_text?: string | null
           title?: string
           updated_at?: string
           user_id?: string
+          venue?: string | null
         }
         Relationships: []
       }
@@ -667,20 +703,26 @@ export type Database = {
       friends: {
         Row: {
           created_at: string
-          friend_id: string
+          deleted_at: string | null
+          email: string | null
           id: string
+          name: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          friend_id: string
+          deleted_at?: string | null
+          email?: string | null
           id?: string
+          name: string
           user_id: string
         }
         Update: {
           created_at?: string
-          friend_id?: string
+          deleted_at?: string | null
+          email?: string | null
           id?: string
+          name?: string
           user_id?: string
         }
         Relationships: []
@@ -875,22 +917,22 @@ export type Database = {
       }
       split_group_members: {
         Row: {
+          friend_id: string
           group_id: string
           id: string
           joined_at: string
-          user_id: string
         }
         Insert: {
+          friend_id: string
           group_id: string
           id?: string
           joined_at?: string
-          user_id: string
         }
         Update: {
+          friend_id?: string
           group_id?: string
           id?: string
           joined_at?: string
-          user_id?: string
         }
         Relationships: [
           {
@@ -898,6 +940,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "split_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "split_group_members_friend_id_fkey"
+            columns: ["friend_id"]
+            isOneToOne: false
+            referencedRelation: "friends"
             referencedColumns: ["id"]
           },
         ]
@@ -931,31 +980,31 @@ export type Database = {
       }
       split_shares: {
         Row: {
-          amount: number
+          amount_owed: number
           created_at: string
+          friend_id: string
           id: string
-          paid: boolean
-          paid_at: string | null
+          is_settled: boolean
+          settled_at: string | null
           split_id: string
-          user_id: string
         }
         Insert: {
-          amount: number
+          amount_owed: number
           created_at?: string
+          friend_id: string
           id?: string
-          paid?: boolean
-          paid_at?: string | null
+          is_settled?: boolean
+          settled_at?: string | null
           split_id: string
-          user_id: string
         }
         Update: {
-          amount?: number
+          amount_owed?: number
           created_at?: string
+          friend_id?: string
           id?: string
-          paid?: boolean
-          paid_at?: string | null
+          is_settled?: boolean
+          settled_at?: string | null
           split_id?: string
-          user_id?: string
         }
         Relationships: [
           {
@@ -965,15 +1014,23 @@ export type Database = {
             referencedRelation: "splits"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "split_shares_friend_id_fkey"
+            columns: ["friend_id"]
+            isOneToOne: false
+            referencedRelation: "friends"
+            referencedColumns: ["id"]
+          },
         ]
       }
       splits: {
         Row: {
           created_at: string
           created_by: string
+          description: string | null
           group_id: string | null
           id: string
-          notes: string | null
+          paid_at: string
           paid_by: string
           status: Database["public"]["Enums"]["split_status"]
           title: string
@@ -983,9 +1040,10 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          description?: string | null
           group_id?: string | null
           id?: string
-          notes?: string | null
+          paid_at?: string
           paid_by: string
           status?: Database["public"]["Enums"]["split_status"]
           title: string
@@ -995,9 +1053,10 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          description?: string | null
           group_id?: string | null
           id?: string
-          notes?: string | null
+          paid_at?: string
           paid_by?: string
           status?: Database["public"]["Enums"]["split_status"]
           title?: string
@@ -1061,7 +1120,7 @@ export type Database = {
       assignment_status: "not_started" | "in_progress" | "done"
       exam_status: "upcoming" | "completed" | "cancelled"
       priority_level: "low" | "medium" | "high"
-      reminder_type: "1_day" | "3_hours" | "morning_of" | "custom"
+      reminder_type: "1_day" | "3_hours" | "morning_of" | "custom" | "1_week" | "3_days" | "1_hour"
       split_status: "pending" | "settled"
       voice_status: "pending" | "processed" | "failed"
     }
@@ -1194,7 +1253,7 @@ export const Constants = {
       assignment_status: ["not_started", "in_progress", "done"],
       exam_status: ["upcoming", "completed", "cancelled"],
       priority_level: ["low", "medium", "high"],
-      reminder_type: ["1_day", "3_hours", "morning_of", "custom"],
+      reminder_type: ["1_day", "3_hours", "morning_of", "custom", "1_week", "3_days", "1_hour"],
       split_status: ["pending", "settled"],
       voice_status: ["pending", "processed", "failed"],
     },

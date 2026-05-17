@@ -5,14 +5,14 @@ import { Label } from '@/components/ui/label'
 import type { ReminderSelection, ReminderType } from '@/lib/assignment-utils'
 
 interface Props {
-  dueAt:     string           // datetime-local value from the form
-  value:     ReminderSelection[]
-  onChange:  (v: ReminderSelection[]) => void
+  dueAt:    string
+  value:    ReminderSelection[]
+  onChange: (v: ReminderSelection[]) => void
 }
 
 const STANDARD: { type: ReminderType; label: string }[] = [
-  { type: '1_day',     label: '1 day before'              },
-  { type: '3_hours',   label: '3 hours before'            },
+  { type: '1_day',      label: '1 day before'              },
+  { type: '3_hours',    label: '3 hours before'            },
   { type: 'morning_of', label: 'Morning of at 8 AM (IST)' },
 ]
 
@@ -60,7 +60,6 @@ export function ReminderConfig({ dueAt, value, onChange }: Props) {
           </label>
         ))}
 
-        {/* Custom time */}
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
