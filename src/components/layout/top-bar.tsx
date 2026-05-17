@@ -36,6 +36,7 @@ export function TopBar({ isAdmin = false, userName }: TopBarProps) {
                 ['/exams',       'Exams'],
                 ['/splits',      'Splits'],
                 ['/community',   'Community'],
+                ['/settings',    'Settings'],
               ] as [string, string][]
             ).map(([href, label]) => (
               <Link

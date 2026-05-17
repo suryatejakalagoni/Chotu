@@ -8,6 +8,10 @@ import {
   statusTransitionSchema,
 } from '@/lib/validations/assignments'
 import { calcTriggerAt, type ReminderSelection } from '@/lib/assignment-utils'
+import {
+  syncAssignmentRemindersToCalendar,
+  deleteAssignmentRemindersFromCalendar,
+} from '@/lib/actions/google-calendar'
 
 export type ActionResult = { error?: string }
 
@@ -88,6 +92,11 @@ export async function createAssignment(
 
     await saveReminders(supabase, user.id, inserted.id, new Date(d.due_at), reminders)
 
+    // Calendar sync — fire-and-forget, never blocks the save
+    void syncAssignmentRemindersToCalendar(
+      user.id, inserted.id, d.title, d.subject, new Date(d.due_at), d.notes ?? null,
+    )
+
     revalidatePath('/assignments')
     return {}
   } catch {
@@ -128,6 +137,9 @@ export async function updateAssignment(
 
     // Replace reminders if caller passed a new set
     if (reminders !== undefined && updated?.due_at) {
+      // Delete old Calendar events before replacing reminder rows
+      await deleteAssignmentRemindersFromCalendar(user.id, id)
+
       await supabase
         .from('assignment_reminders')
         .delete()
@@ -136,6 +148,24 @@ export async function updateAssignment(
         .eq('sent', false) // never delete already-sent reminders
 
       await saveReminders(supabase, user.id, id, new Date(updated.due_at), reminders)
+
+      // Sync new reminders to Calendar
+      const fullAssignment = await supabase
+        .from('assignments')
+        .select('title, subject, due_at, notes')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fullAssignment.data) {
+        void syncAssignmentRemindersToCalendar(
+          user.id, id,
+          fullAssignment.data.title,
+          fullAssignment.data.subject,
+          new Date(fullAssignment.data.due_at),
+          fullAssignment.data.notes ?? null,
+        )
+      }
     }
 
     revalidatePath('/assignments')
@@ -149,6 +179,10 @@ export async function deleteAssignment(id: string): Promise<ActionResult> {
   if (!id) return { error: 'Invalid id' }
   try {
     const { supabase, user } = await getAuthUser()
+
+    // Delete Calendar events before deleting the DB rows (cascade will remove reminders)
+    await deleteAssignmentRemindersFromCalendar(user.id, id)
+
     const { error } = await supabase
       .from('assignments')
       .delete()

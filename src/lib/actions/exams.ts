@@ -10,6 +10,10 @@ import {
   topicToggleSchema,
 } from '@/lib/validations/exams'
 import { calcExamTriggerAt, type ExamReminderSelection } from '@/lib/exam-utils'
+import {
+  syncExamRemindersToCalendar,
+  deleteExamRemindersFromCalendar,
+} from '@/lib/actions/google-calendar'
 
 export type ActionResult = { error?: string }
 
@@ -86,6 +90,11 @@ export async function createExam(
 
     await saveExamReminders(supabase, user.id, inserted.id, new Date(d.exam_at), reminders)
 
+    // Calendar sync — fire-and-forget, never blocks the save
+    void syncExamRemindersToCalendar(
+      user.id, inserted.id, d.subject, d.exam_type ?? null, new Date(d.exam_at), d.notes ?? null,
+    )
+
     revalidatePath('/exams')
     revalidatePath('/dashboard')
     return { id: inserted.id }
@@ -132,7 +141,9 @@ export async function updateExam(
     }
 
     if (reminders !== undefined && d.exam_at) {
-      // Replace unsent reminders
+      // Delete old Calendar events before replacing reminder rows
+      await deleteExamRemindersFromCalendar(user.id, id)
+
       await supabase
         .from('exam_reminders')
         .delete()
@@ -141,6 +152,24 @@ export async function updateExam(
         .eq('sent', false)
 
       await saveExamReminders(supabase, user.id, id, new Date(d.exam_at), reminders)
+
+      // Sync new reminders to Calendar
+      const fullExam = await supabase
+        .from('exams')
+        .select('subject, exam_type, exam_at, notes')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fullExam.data) {
+        void syncExamRemindersToCalendar(
+          user.id, id,
+          fullExam.data.subject,
+          fullExam.data.exam_type ?? null,
+          new Date(fullExam.data.exam_at),
+          fullExam.data.notes ?? null,
+        )
+      }
     }
 
     revalidatePath('/exams')
@@ -154,6 +183,10 @@ export async function updateExam(
 export async function deleteExam(examId: string): Promise<ActionResult> {
   try {
     const { supabase, user } = await getAuthUser()
+
+    // Delete Calendar events before DB delete (cascade removes exam_reminders)
+    await deleteExamRemindersFromCalendar(user.id, examId)
+
     const { error } = await supabase
       .from('exams')
       .delete()
