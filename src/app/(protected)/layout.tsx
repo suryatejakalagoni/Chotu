@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TopBar } from '@/components/layout/top-bar'
-import { BottomNav } from '@/components/layout/bottom-nav'
 
 export default async function ProtectedLayout({
   children,
@@ -24,11 +23,7 @@ export default async function ProtectedLayout({
   return (
     <div className="min-h-screen bg-background">
       <TopBar isAdmin={isAdmin} userName={userName} />
-      {/* pb-14 on mobile so bottom nav doesn't cover content */}
-      <div className="pb-14 lg:pb-0">
-        {children}
-      </div>
-      <BottomNav />
+      {children}
     </div>
   )
 }
