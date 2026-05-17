@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { globalSearch } from '@/lib/actions/search'
-import { TopBar } from '@/components/layout/top-bar'
 
 export const metadata: Metadata = { title: 'Search' }
 
@@ -31,12 +30,6 @@ export default async function SearchPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name, is_admin')
-    .eq('id', user.id)
-    .single()
-
   const params = await searchParams
   const q      = (params.q ?? '').trim()
   const filter = params.filter ?? 'all'
@@ -48,10 +41,7 @@ export default async function SearchPage({
     : 0
 
   return (
-    <div className="min-h-screen bg-background">
-      <TopBar isAdmin={profile?.is_admin ?? false} userName={profile?.display_name ?? user.email?.split('@')[0]} />
-
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+    <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
         {/* Header */}
         <div>
           <h1 className="text-lg font-semibold">
@@ -215,7 +205,6 @@ export default async function SearchPage({
             )}
           </div>
         )}
-      </main>
-    </div>
+    </main>
   )
 }

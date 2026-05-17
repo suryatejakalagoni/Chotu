@@ -9,8 +9,6 @@ import { SplitList } from '@/components/splits/splits/split-list'
 import { FriendList } from '@/components/splits/friends/friend-list'
 import { GroupList } from '@/components/splits/groups/group-list'
 import { BalanceSummary } from '@/components/splits/splits/balance-summary'
-import { logOut } from '@/lib/actions/auth'
-
 export const metadata: Metadata = { title: 'Splits — CHOTU' }
 
 type Tab = 'splits' | 'friends' | 'groups' | 'balances'
@@ -67,23 +65,7 @@ export default async function SplitsPage({ searchParams }: PageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <nav className="border-b px-4 py-3 flex items-center justify-between">
-        <span className="font-bold">CHOTU</span>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-3">
-            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">Dashboard</Link>
-            <Link href="/expenses"  className="text-sm text-muted-foreground hover:text-foreground">Expenses</Link>
-            <Link href="/assignments" className="text-sm text-muted-foreground hover:text-foreground">Assignments</Link>
-            <Link href="/exams"     className="text-sm text-muted-foreground hover:text-foreground">Exams</Link>
-          </div>
-          <form action={logOut}>
-            <button type="submit" className="text-sm text-muted-foreground hover:text-foreground">Log out</button>
-          </form>
-        </div>
-      </nav>
-
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
         <h1 className="text-2xl font-bold">Splits</h1>
 
         {/* Tab navigation */}
@@ -115,7 +97,6 @@ export default async function SplitsPage({ searchParams }: PageProps) {
         {activeTab === 'balances' && (
           <BalanceSummary friends={friends} totalOwed={totalOwed} />
         )}
-      </div>
-    </main>
+    </div>
   )
 }

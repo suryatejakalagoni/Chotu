@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Mic } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { TopBar } from '@/components/layout/top-bar'
 import { ExpenseDashboardWidget } from '@/components/expenses/dashboard-widget'
 import { RecentExpensesWidget } from '@/components/expenses/recent-expenses-widget'
 import { AssignmentsDashboardWidget } from '@/components/assignments/dashboard-widget'
@@ -46,10 +45,7 @@ export default async function DashboardPage() {
   const overallBudget = budgets?.amount ?? null
 
   return (
-    <div className="min-h-screen bg-background">
-      <TopBar isAdmin={isAdmin} userName={userName} />
-
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Greeting */}
         <div>
           <h1 className="text-xl font-semibold">
@@ -109,7 +105,6 @@ export default async function DashboardPage() {
           budget={overallBudget}
           income={totalIncome}
         />
-      </main>
-    </div>
+    </main>
   )
 }
