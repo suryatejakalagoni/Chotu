@@ -1,94 +1,164 @@
 'use client'
 
-import { useEffect } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { BookObject, ClockObject, CoinObject, GemObject, type ObjectTarget } from './objects'
+import { useRef, useEffect } from 'react'
+import { Canvas, useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+import type { Group } from 'three'
+import {
+  BookObject,
+  IcosaObject,
+  CoinsObject,
+  VoiceObject,
+  GemObject,
+  type ObjectTarget,
+} from './objects'
 import { useLandingStore, type LandingSection } from '@/store/landing-store'
 
-/* ── Target state per section ────────────────────────── */
+// ── Target layout per section ─────────────────────────────
+
 type SceneTargets = {
-  book: ObjectTarget
-  clock: ObjectTarget
-  coin: ObjectTarget
-  gem: ObjectTarget
+  book:  ObjectTarget
+  icosa: ObjectTarget
+  coins: ObjectTarget
+  voice: ObjectTarget
+  gem:   ObjectTarget
+}
+
+const OFF_SCALE   = 0.70
+const OFF_OPACITY = 0.20
+
+function off(position: [number, number, number]): ObjectTarget {
+  return { position, scale: OFF_SCALE, opacity: OFF_OPACITY }
+}
+
+function on(position: [number, number, number]): ObjectTarget {
+  return { position, scale: 1.28, opacity: 1 }
 }
 
 const TARGETS: Record<LandingSection, SceneTargets> = {
   hero: {
-    book:  { position: [-1.1, 0.85, 0],   scale: 1,    opacity: 1 },
-    clock: { position: [1.0, 0.75, -0.4], scale: 1,    opacity: 1 },
-    coin:  { position: [-0.85, -0.9, 0.3],scale: 1,    opacity: 1 },
-    gem:   { position: [1.05, -0.8, 0],   scale: 1,    opacity: 1 },
+    book:  { position: [-1.25,  0.95,  0.00], scale: 0.92, opacity: 0.88 },
+    icosa: { position: [ 1.15,  0.80, -0.25], scale: 0.86, opacity: 0.82 },
+    coins: { position: [-0.15, -0.85,  0.30], scale: 0.88, opacity: 0.85 },
+    voice: { position: [ 1.05, -0.55,  0.10], scale: 0.84, opacity: 0.80 },
+    gem:   { position: [-0.90, -0.45, -0.10], scale: 0.88, opacity: 0.80 },
+  },
+  transition: {
+    book:  { position: [-1.15,  0.90, -0.30], scale: 0.74, opacity: 0.30 },
+    icosa: { position: [ 1.05,  0.80, -0.40], scale: 0.74, opacity: 0.30 },
+    coins: { position: [-0.10, -0.80, -0.10], scale: 0.78, opacity: 0.34 },
+    voice: { position: [ 0.95, -0.55, -0.20], scale: 0.74, opacity: 0.30 },
+    gem:   { position: [-0.85, -0.40, -0.30], scale: 0.78, opacity: 0.34 },
   },
   assignments: {
-    book:  { position: [0, 0, 0.5],        scale: 1.3,  opacity: 1   },
-    clock: { position: [2.6, 0.6, -1.2],  scale: 0.7,  opacity: 0.28 },
-    coin:  { position: [-2.4, -1.2, -0.8],scale: 0.7,  opacity: 0.28 },
-    gem:   { position: [2.4, -1.0, -0.6], scale: 0.7,  opacity: 0.28 },
+    book:  on([ 0.00,  0.00,  0.50]),
+    icosa: off([ 1.50,  1.00, -0.65]),
+    coins: off([-1.40, -1.10, -0.55]),
+    voice: off([ 1.35, -0.95, -0.60]),
+    gem:   off([-1.45,  0.95, -0.60]),
+  },
+  exams: {
+    book:  off([-1.50,  1.00, -0.65]),
+    icosa: on([ 0.00,  0.00,  0.50]),
+    coins: off([-1.40, -1.10, -0.55]),
+    voice: off([ 1.35, -0.95, -0.60]),
+    gem:   off([ 0.10,  1.50, -0.75]),
   },
   expenses: {
-    book:  { position: [-2.6, 0.7, -1.2], scale: 0.7,  opacity: 0.28 },
-    clock: { position: [2.4, 0.5, -0.8],  scale: 0.7,  opacity: 0.28 },
-    coin:  { position: [0, 0, 0.5],        scale: 1.3,  opacity: 1   },
-    gem:   { position: [2.2, -1.0, -0.6], scale: 0.7,  opacity: 0.28 },
+    book:  off([-1.50,  1.00, -0.65]),
+    icosa: off([ 1.40,  0.90, -0.60]),
+    coins: on([ 0.00,  0.00,  0.50]),
+    voice: off([ 1.35, -0.95, -0.60]),
+    gem:   off([-1.40, -1.05, -0.55]),
+  },
+  voice: {
+    book:  off([-1.50,  1.00, -0.65]),
+    icosa: off([ 1.40,  0.90, -0.60]),
+    coins: off([-1.40, -1.10, -0.55]),
+    voice: on([ 0.00,  0.00,  0.50]),
+    gem:   off([ 1.35, -0.95, -0.60]),
   },
   community: {
-    book:  { position: [-2.4, 0.7, -1.0], scale: 0.7,  opacity: 0.28 },
-    clock: { position: [2.2, 0.5, -0.8],  scale: 0.7,  opacity: 0.28 },
-    coin:  { position: [-2.2, -1.0, -0.6],scale: 0.7,  opacity: 0.28 },
-    gem:   { position: [0, 0, 0.5],        scale: 1.3,  opacity: 1   },
+    book:  off([-1.50,  1.00, -0.65]),
+    icosa: off([ 1.40,  0.90, -0.60]),
+    coins: off([ 0.10,  1.50, -0.75]),
+    voice: off([-1.35, -0.95, -0.60]),
+    gem:   on([ 0.00,  0.00,  0.50]),
   },
-  cta: {
-    book:  { position: [-1.0, 0.9, 0],    scale: 0.9,  opacity: 1 },
-    clock: { position: [1.0, 0.9, 0],     scale: 0.9,  opacity: 1 },
-    coin:  { position: [-1.0, -0.9, 0],   scale: 0.9,  opacity: 1 },
-    gem:   { position: [1.0, -0.9, 0],    scale: 0.9,  opacity: 1 },
+  closer: {
+    book:  { position: [-1.05,  0.80,  0.00], scale: 0.86, opacity: 0.72 },
+    icosa: { position: [ 0.95,  0.75, -0.25], scale: 0.80, opacity: 0.68 },
+    coins: { position: [-0.10, -0.80,  0.25], scale: 0.82, opacity: 0.70 },
+    voice: { position: [ 0.95, -0.50,  0.10], scale: 0.78, opacity: 0.66 },
+    gem:   { position: [-0.85, -0.40, -0.10], scale: 0.82, opacity: 0.70 },
   },
 }
 
-/* ── Inner scene ─────────────────────────────────────── */
-function SceneObjects() {
+// ── Inner scene (runs inside Canvas context) ──────────────
+
+function SceneContent() {
   const activeSection = useLandingStore((s) => s.activeSection)
   const reducedMotion = useLandingStore((s) => s.reducedMotion)
+
+  const rootRef = useRef<Group>(null!)
+
+  useFrame((_, delta) => {
+    if (!rootRef.current || reducedMotion) return
+    const sp = useLandingStore.getState().scrollProgress
+    rootRef.current.rotation.y = THREE.MathUtils.lerp(
+      rootRef.current.rotation.y,
+      sp * Math.PI * 0.08,
+      Math.min(1, delta * 1.5)
+    )
+  })
+
   const t = TARGETS[activeSection]
 
   return (
-    <>
-      {/* Warm desk-lamp key light */}
-      <pointLight position={[5, 8, 4]} intensity={1.8} color="#FFD580" />
-      {/* Cool fill */}
-      <directionalLight position={[-4, 3, 2]} intensity={0.25} color="#B8D4E8" />
-      {/* Near-zero ambient */}
-      <ambientLight intensity={0.08} color="#1C1A16" />
+    <group ref={rootRef}>
+      {/* Direction C lighting: single warm key, near-zero fill */}
+      <pointLight position={[3, 4, 5]} intensity={1.4} color="#FFE8C0" />
+      <ambientLight intensity={0.05} />
 
       <BookObject  target={t.book}  reduced={reducedMotion} />
-      <ClockObject target={t.clock} reduced={reducedMotion} />
-      <CoinObject  target={t.coin}  reduced={reducedMotion} />
+      <IcosaObject target={t.icosa} reduced={reducedMotion} />
+      <CoinsObject target={t.coins} reduced={reducedMotion} />
+      <VoiceObject target={t.voice} reduced={reducedMotion} />
       <GemObject   target={t.gem}   reduced={reducedMotion} />
-    </>
+    </group>
   )
 }
 
-/* ── Canvas — exported as dynamic() target ───────────── */
+// ── Canvas — exported as dynamic() target ─────────────────
+
 export default function Scene() {
-  const setReducedMotion = useLandingStore((s) => s.setReducedMotion)
+  const setSceneLoaded = useLandingStore((s) => s.setSceneLoaded)
 
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReducedMotion(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [setReducedMotion])
+    setSceneLoaded(true)
+    return () => setSceneLoaded(false)
+  }, [setSceneLoaded])
 
   return (
-    <Canvas
-      camera={{ position: [0, 0, 6], fov: 45 }}
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: true }}
-      style={{ background: 'transparent' }}
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        width: '52%',
+        height: '100%',
+        pointerEvents: 'none',
+      }}
     >
-      <SceneObjects />
-    </Canvas>
+      <Canvas
+        camera={{ position: [0, 0, 5.5], fov: 46 }}
+        dpr={[1, 1.5]}
+        gl={{ antialias: true, alpha: true }}
+        style={{ background: 'transparent' }}
+      >
+        <SceneContent />
+      </Canvas>
+    </div>
   )
 }

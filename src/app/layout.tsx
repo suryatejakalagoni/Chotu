@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Fraunces, DM_Mono } from 'next/font/google'
 import { ServiceWorkerRegistration } from '@/components/layout/service-worker-registration'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import './globals.css'
@@ -14,6 +14,19 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 })
 
+const fraunces = Fraunces({
+  variable: '--font-fraunces',
+  subsets: ['latin'],
+  display: 'swap',
+})
+
+const dmMono = DM_Mono({
+  variable: '--font-dm-mono',
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  display: 'swap',
+})
+
 export const viewport: Viewport = {
   themeColor: '#2C3531',
   width: 'device-width',
@@ -24,10 +37,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: {
     template: '%s — CHOTU',
-    default: "CHOTU — Your batch's command center",
+    default: 'CHOTU — Your student life, organized.',
   },
   description:
-    'Assignments, exams, expenses, splits, and community hub for college students.',
+    'Track assignments, exams, expenses, and more. Your personal academic companion.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -51,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`dark ${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${dmMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

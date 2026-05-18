@@ -1,414 +1,619 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { Playfair_Display } from 'next/font/google'
+import Image from 'next/image'
+import { useRef, useEffect } from 'react'
+import {
+  motion,
+  AnimatePresence,
+  useScroll,
+  useTransform,
+  useMotionValueEvent,
+  type MotionValue,
+} from 'framer-motion'
 import { useLandingStore, type LandingSection } from '@/store/landing-store'
 import CustomCursor from './cursor'
 
-const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair', display: 'swap' })
+// ── Palette ──────────────────────────────────────────────────────
+const BG     = '#0A1A10'
+const CREAM  = '#F5F0E8'
+const GOLD   = '#C9A961'
+const DIM    = 'rgba(245,240,232,0.45)'
+const FAINT  = 'rgba(245,240,232,0.22)'
+const CARD   = 'rgba(245,240,232,0.055)'
+const BORDER = 'rgba(245,240,232,0.08)'
 
-/* 3D scene — code-split, no SSR, loads ONLY on desktop */
-const Scene = dynamic(() => import('./scene'), { ssr: false })
+// ── Fonts ─────────────────────────────────────────────────────────
+const FF = "var(--font-fraunces,'Georgia',serif)"
+const FM = "var(--font-dm-mono,'Courier New',monospace)"
 
-/* ── Reveal on scroll ────────────────────────────────── */
-function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null!)
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const el = ref.current
-    if (mq.matches) return
-
-    el.style.opacity = '0'
-    el.style.transform = 'translateY(20px)'
-    el.style.transition = `opacity 0.65s ease ${delay}ms, transform 0.65s ease ${delay}ms`
-
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.style.opacity = '1'
-          el.style.transform = 'translateY(0)'
-          obs.disconnect()
-        }
-      },
-      { threshold: 0.15 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [delay])
-
-  return <div ref={ref}>{children}</div>
+// ── Scroll ranges [enter-start, enter-end, exit-start, exit-end] ──
+const R = {
+  hero:        [0,    0.02, 0.08, 0.14] as const,
+  transition:  [0.10, 0.14, 0.18, 0.22] as const,
+  assignments: [0.18, 0.22, 0.32, 0.38] as const,
+  exams:       [0.34, 0.38, 0.48, 0.54] as const,
+  expenses:    [0.50, 0.54, 0.61, 0.67] as const,
+  voice:       [0.63, 0.67, 0.74, 0.80] as const,
+  community:   [0.76, 0.80, 0.86, 0.92] as const,
+  closer:      [0.88, 0.92, 1.00, 1.00] as const,
 }
 
-/* ── Mockup card ─────────────────────────────────────── */
-function MockCard({ children, dark }: { children: React.ReactNode; dark?: boolean }) {
-  return (
-    <div style={{
-      borderRadius: 10, padding: '16px',
-      border: `1px solid ${dark ? '#222' : '#E8DFD0'}`,
-      backgroundColor: dark ? '#141414' : '#FDFAF5',
-    }}>
-      {children}
-    </div>
-  )
+// ── Real photo per section ────────────────────────────────────────
+// Drop your photos into public/landing/ — filenames below
+const SECTION_IMAGE: Partial<Record<LandingSection, string>> = {
+  hero:        '/landing/hero.jpg',
+  assignments: '/landing/book.jpg',
+  exams:       '/landing/notes.jpg',
+  expenses:    '/landing/coins.jpg',
+  voice:       '/landing/mic.jpg',
+  community:   '/landing/students.jpg',
+  closer:      '/landing/hero.jpg',
 }
 
-/* ── Section observer — fires when section enters view ─ */
-function useSectionObserver() {
-  const setActiveSection = useLandingStore((s) => s.setActiveSection)
-
-  useEffect(() => {
-    const sectionMap: Record<string, LandingSection> = {
-      'section-hero': 'hero',
-      'section-assignments': 'assignments',
-      'section-expenses': 'expenses',
-      'section-community': 'community',
-      'section-cta': 'cta',
-    }
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const id = entry.target.id
-            const section = sectionMap[id]
-            if (section) setActiveSection(section)
-          }
-        }
-      },
-      { threshold: 0.35 }
-    )
-
-    Object.keys(sectionMap).forEach((id) => {
-      const el = document.getElementById(id)
-      if (el) obs.observe(el)
-    })
-
-    return () => obs.disconnect()
-  }, [setActiveSection])
-}
-
-/* ── Lenis smooth scroll ─────────────────────────────── */
+// ── Lenis smooth scroll ───────────────────────────────────────────
 function useLenis() {
   useEffect(() => {
     let lenis: import('lenis').default | null = null
-
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (mq.matches) return
-
     import('lenis').then(({ default: Lenis }) => {
-      lenis = new Lenis({ duration: 1.2, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) })
+      lenis = new Lenis({
+        duration: 1.4,
+        easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      })
       function raf(time: number) {
         lenis?.raf(time)
         requestAnimationFrame(raf)
       }
       requestAnimationFrame(raf)
     })
-
     return () => { lenis?.destroy() }
   }, [])
 }
 
-/* ── Main desktop layout ─────────────────────────────── */
-export default function LandingDesktop() {
-  useSectionObserver()
-  useLenis()
+// ── Text panel — absolutely positioned in the sticky viewport ─────
+function TextPanel({
+  children,
+  sv,
+  section,
+}: {
+  children: React.ReactNode
+  sv: MotionValue<number>
+  section: keyof typeof R
+}) {
+  const [es, ee, xs, xe] = R[section]
+  const opacity = useTransform(sv, [es, ee, xs, xe], [0, 1, 1, 0])
+  const y = useTransform(sv, [xs, xe], ['0px', '-28px'])
+
+  return (
+    <motion.div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '52%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        padding: '0 3rem 0 5vw',
+        opacity,
+        y,
+      }}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// ── DataCard ─────────────────────────────────────────────────────
+type DataRow = { label: string; value: string; accent?: 'gold' | 'dim' }
+
+function DataCard({
+  rows,
+  monoLabels = false,
+}: {
+  rows: DataRow[]
+  monoLabels?: boolean
+}) {
+  return (
+    <div
+      style={{
+        background: CARD,
+        border: `1px solid ${BORDER}`,
+        borderRadius: '0.625rem',
+        padding: '1rem 1.25rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.55rem',
+        maxWidth: '38ch',
+      }}
+    >
+      {rows.map((row, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '1.5rem',
+            fontFamily: FM,
+            fontSize: '0.75rem',
+            lineHeight: 1.5,
+          }}
+        >
+          <span style={{ color: monoLabels ? DIM : 'rgba(245,240,232,0.55)', flexShrink: 0 }}>
+            {row.label}
+          </span>
+          <span
+            style={{
+              color:
+                row.accent === 'gold' ? GOLD
+                : row.accent === 'dim' ? FAINT
+                : CREAM,
+              textAlign: 'right',
+            }}
+          >
+            {row.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Pillar text block ─────────────────────────────────────────────
+function PillarContent({
+  tag,
+  heading,
+  body,
+  rows,
+  monoLabels = false,
+}: {
+  tag: string
+  heading: string
+  body: string
+  rows: DataRow[]
+  monoLabels?: boolean
+}) {
+  return (
+    <>
+      <span
+        style={{
+          display: 'block',
+          fontFamily: FM,
+          fontSize: '0.6875rem',
+          letterSpacing: '0.18em',
+          color: DIM,
+          textTransform: 'uppercase',
+          marginBottom: '1.125rem',
+        }}
+      >
+        {tag}
+      </span>
+      <h2
+        style={{
+          fontFamily: FF,
+          fontSize: 'clamp(2.25rem,3.5vw,3.25rem)',
+          fontWeight: 700,
+          lineHeight: 1.08,
+          letterSpacing: '-0.03em',
+          color: CREAM,
+          margin: '0 0 1.125rem',
+          maxWidth: '18ch',
+        }}
+      >
+        {heading}
+      </h2>
+      <p
+        style={{
+          fontSize: '1rem',
+          lineHeight: 1.68,
+          color: DIM,
+          maxWidth: '38ch',
+          marginBottom: '1.75rem',
+        }}
+      >
+        {body}
+      </p>
+      <DataCard rows={rows} monoLabels={monoLabels} />
+    </>
+  )
+}
+
+// ── Floating real-photo object ────────────────────────────────────
+function FloatingImage() {
+  const activeSection = useLandingStore((s) => s.activeSection)
+  const src = SECTION_IMAGE[activeSection]
 
   return (
     <div
-      className={`landing-page ${playfair.variable}`}
-      style={{ position: 'relative', cursor: 'none' }}
+      aria-hidden
+      style={{
+        position: 'absolute',
+        right: '5vw',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width:  'clamp(260px, 36vh, 440px)',
+        height: 'clamp(300px, 46vh, 560px)',
+        pointerEvents: 'none',
+        zIndex: 2,
+      }}
     >
-      <CustomCursor />
+      <AnimatePresence mode="wait">
+        {src && (
+          <motion.div
+            key={activeSection}
+            initial={{ opacity: 0, y: 28, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0,  scale: 1    }}
+            exit={{    opacity: 0, y: -28, scale: 0.96 }}
+            transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+            style={{ position: 'relative', width: '100%', height: '100%' }}
+          >
+            {/* Inner div carries the CSS float so it doesn't fight Framer Y */}
+            <div
+              className="lc-obj-float"
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                filter:
+                  'drop-shadow(0 40px 80px rgba(0,0,0,0.55)) drop-shadow(0 0 56px rgba(201,169,97,0.12))',
+              }}
+            >
+              <Image
+                src={src}
+                alt=""
+                fill
+                sizes="(max-width: 1400px) 36vh, 440px"
+                style={{ objectFit: 'contain' }}
+                priority={activeSection === 'hero'}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
-      {/* ── Fixed nav ─────────────────────────────── */}
-      <nav style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 32px', backgroundColor: '#0F0F0F',
-        borderBottom: '1px solid #161616',
-      }}>
-        <span style={{ color: '#F5F5F0', fontWeight: 700, fontSize: 13, letterSpacing: '0.25em' }}>CHOTU</span>
+// ── Nav ───────────────────────────────────────────────────────────
+function Nav({ sv }: { sv: MotionValue<number> }) {
+  const opacity = useTransform(sv, [0, 0.02], [0, 1])
+  return (
+    <motion.nav
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 40,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '1.25rem 5vw',
+        opacity,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: FF,
+          fontWeight: 900,
+          fontSize: '1.1875rem',
+          letterSpacing: '-0.03em',
+          color: CREAM,
+        }}
+      >
+        CHOTU
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
         <Link
           href="/login"
           data-magnetic
-          style={{ color: '#F5A623', fontSize: 13, fontWeight: 500, transition: 'opacity 0.2s' }}
+          style={{
+            color: CREAM,
+            opacity: 0.55,
+            fontSize: '0.875rem',
+            textDecoration: 'none',
+            transition: 'opacity 0.2s',
+          }}
         >
           Log in
         </Link>
-      </nav>
-
-      {/* ── Fixed 3D canvas — right 45vw ─────────── */}
-      <div
-        aria-hidden
-        style={{
-          position: 'fixed', top: 0, right: 0,
-          width: '45vw', height: '100vh',
-          zIndex: 10, pointerEvents: 'none',
-        }}
-      >
-        <Scene />
-      </div>
-
-      {/* ── Scrollable content — left 55vw ─────── */}
-      <div style={{ marginRight: '45vw' }}>
-
-        {/* Hero */}
-        <section
-          id="section-hero"
+        <Link
+          href="/signup"
+          data-magnetic
           style={{
-            position: 'relative', minHeight: '100vh',
-            backgroundColor: '#0F0F0F',
-            display: 'flex', flexDirection: 'column', justifyContent: 'center',
-            padding: '100px 48px 60px', overflow: 'hidden',
+            background: GOLD,
+            color: BG,
+            padding: '0.5rem 1.25rem',
+            borderRadius: '100px',
+            fontSize: '0.875rem',
+            fontWeight: 700,
+            textDecoration: 'none',
+            letterSpacing: '-0.01em',
           }}
         >
-          {/* Warm ambient glow echoing the 3D desk lamp */}
-          <div aria-hidden style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'radial-gradient(ellipse 70% 60% at 85% 20%, rgba(245,166,35,0.04) 0%, transparent 70%)',
-          }} />
-          {/* Ghost watermark */}
-          <span aria-hidden style={{
-            position: 'absolute', right: '-4%', top: '50%',
-            fontFamily: 'var(--font-playfair)', fontWeight: 700,
-            fontSize: 'clamp(120px, 20vw, 240px)', color: '#2C3531', opacity: 0.05,
-            transform: 'translateY(-50%) rotate(-12deg)',
-            pointerEvents: 'none', userSelect: 'none',
-          }}>CHOTU</span>
-          {/* Saffron left rule */}
-          <div style={{ position: 'absolute', left: 0, top: '25%', bottom: '25%', width: 2, backgroundColor: '#F5A623', opacity: 0.45 }} />
+          Sign up
+        </Link>
+      </div>
+    </motion.nav>
+  )
+}
 
-          <div style={{ position: 'relative', paddingLeft: 20 }}>
-            <p style={{ color: '#3A3A3A', fontSize: 11, letterSpacing: '0.32em', textTransform: 'uppercase', marginBottom: 40, fontWeight: 500 }}>
-              Built for college students · Telangana
-            </p>
-            <h1 style={{
-              fontFamily: 'var(--font-playfair)', fontWeight: 700,
-              fontSize: 'clamp(52px, 8vw, 88px)', color: '#F5F5F0',
-              lineHeight: 1.02, marginBottom: 4,
-            }}>
-              Your batch&apos;s
-            </h1>
-            <h1 style={{
-              fontFamily: 'var(--font-playfair)', fontWeight: 700,
-              fontSize: 'clamp(52px, 8vw, 88px)', color: '#F5F5F0',
-              lineHeight: 1.02, marginBottom: 48,
-            }}>
-              command <span style={{ color: '#F5A623' }}>center.</span>
-            </h1>
-            <p style={{ color: '#3A3A3A', fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 40 }}>
-              Assignments · Exams · Expenses · Splits · Community
-            </p>
-            <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Link
-                href="/signup"
-                data-magnetic
-                style={{
-                  display: 'inline-flex', alignItems: 'center',
-                  padding: '14px 28px', backgroundColor: '#F5A623',
-                  color: '#0F0F0F', fontWeight: 600, fontSize: 13, letterSpacing: '0.06em',
-                  transition: 'opacity 0.2s',
-                }}
-              >
-                Sign up free
-              </Link>
-              <Link
-                href="/login"
-                data-magnetic
-                style={{ color: '#F5F5F0', fontSize: 13, fontWeight: 500 }}
-              >
-                Log in →
-              </Link>
-            </div>
-          </div>
-          <div style={{ position: 'absolute', bottom: 0, left: 48, right: 0, height: 1, backgroundColor: '#1C1C1C' }} />
-        </section>
+// ── Rich atmospheric background ───────────────────────────────────
+const RICH_BG = `
+  radial-gradient(ellipse 65% 55% at 78% 28%, rgba(201,169,97,0.16) 0%, transparent 62%),
+  radial-gradient(ellipse 75% 65% at 18% 82%, rgba(6,24,12,0.80)    0%, transparent 68%),
+  radial-gradient(ellipse 55% 60% at 52% 100%,rgba(14,42,20,0.55)   0%, transparent 55%),
+  radial-gradient(ellipse 40% 40% at 88% 72%, rgba(201,169,97,0.06)  0%, transparent 50%),
+  ${BG}
+`.trim()
 
-        {/* Feature 01 — Assignments */}
-        <section
-          id="section-assignments"
-          style={{ position: 'relative', backgroundColor: '#0F0F0F', padding: '100px 48px', overflow: 'hidden' }}
-        >
-          <span aria-hidden style={{
-            position: 'absolute', right: 8, top: 8, fontFamily: 'var(--font-playfair)',
-            fontSize: 'clamp(80px, 18vw, 160px)', color: '#2C3531', opacity: 0.07,
-            fontWeight: 700, lineHeight: 1, pointerEvents: 'none', userSelect: 'none',
-          }}>01</span>
+// ── Main ──────────────────────────────────────────────────────────
+export default function LandingDesktop() {
+  useLenis()
 
-          <Reveal>
-            <p style={{ color: '#F5A623', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 18 }}>Academics</p>
-            <h2 style={{ fontFamily: 'var(--font-playfair)', fontWeight: 700, fontSize: 'clamp(30px, 4.5vw, 52px)', color: '#F5F5F0', lineHeight: 1.12, marginBottom: 18 }}>
-              Never miss a deadline.
-            </h2>
-            <p style={{ color: '#555', fontSize: 14, lineHeight: 1.8, marginBottom: 28, maxWidth: '38ch' }}>
-              Track assignments by status, subject, and due date. Upload notes and question papers. Set reminders. Your exam schedule links automatically so nothing slips through.
-            </p>
-            <Link href="/signup" data-magnetic style={{ color: '#F5A623', fontSize: 13, fontWeight: 500 }}>Get started →</Link>
-          </Reveal>
+  const containerRef = useRef<HTMLDivElement>(null)
+  const { scrollYProgress: sv } = useScroll({ target: containerRef })
 
-          <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { title: 'OS Assignment', subject: 'Operating Systems', due: 'Due tomorrow', status: 'In progress', pct: 65, accent: '#F5A623' },
-              { title: 'DBMS Lab Report', subject: 'Database Systems', due: 'Due in 3 days', status: 'Not started', pct: 0, accent: '#444' },
-              { title: 'CN Mini Project', subject: 'Computer Networks', due: 'Done', status: 'Done', pct: 100, accent: '#4ADE80' },
-            ].map((item, i) => (
-              <Reveal key={item.title} delay={i * 70}>
-                <MockCard dark>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div>
-                      <p style={{ color: '#F5F5F0', fontSize: 13, fontWeight: 500 }}>{item.title}</p>
-                      <p style={{ color: '#444', fontSize: 11, marginTop: 2 }}>{item.subject}</p>
-                    </div>
-                    <span style={{ backgroundColor: '#1C1C1C', color: item.accent, fontSize: 11, padding: '2px 8px', borderRadius: 4, marginLeft: 12, flexShrink: 0 }}>{item.status}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: '#222' }}>
-                      <div style={{ width: `${item.pct}%`, height: 3, borderRadius: 2, backgroundColor: item.accent }} />
-                    </div>
-                    <p style={{ color: '#444', fontSize: 11, flexShrink: 0 }}>{item.due}</p>
-                  </div>
-                </MockCard>
-              </Reveal>
-            ))}
-          </div>
-        </section>
+  const setScrollProgress = useLandingStore((s) => s.setScrollProgress)
+  const setReducedMotion  = useLandingStore((s) => s.setReducedMotion)
 
-        {/* Feature 02 — Expenses */}
-        <section
-          id="section-expenses"
-          style={{ position: 'relative', backgroundColor: '#F5F0E8', padding: '100px 48px', overflow: 'hidden' }}
-        >
-          <span aria-hidden style={{
-            position: 'absolute', left: 8, top: 8, fontFamily: 'var(--font-playfair)',
-            fontSize: 'clamp(80px, 18vw, 160px)', color: '#2C3531', opacity: 0.07,
-            fontWeight: 700, lineHeight: 1, pointerEvents: 'none', userSelect: 'none',
-          }}>02</span>
+  // Sync scrollYProgress → store (drives FloatingImage section state)
+  useMotionValueEvent(sv, 'change', setScrollProgress)
 
-          <Reveal>
-            <p style={{ color: '#8B7355', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 18 }}>Money</p>
-            <h2 style={{ fontFamily: 'var(--font-playfair)', fontWeight: 700, fontSize: 'clamp(30px, 4.5vw, 52px)', color: '#2C3531', lineHeight: 1.12, marginBottom: 18 }}>
-              Know where every rupee goes.
-            </h2>
-            <p style={{ color: '#8B7355', fontSize: 14, lineHeight: 1.8, marginBottom: 28, maxWidth: '38ch' }}>
-              Set a monthly budget and track every expense against it. Split canteen bills by name — your friends don&apos;t need an account. Settle up with one tap.
-            </p>
-            <Link href="/signup" data-magnetic style={{ color: '#2C3531', fontSize: 13, fontWeight: 500 }}>Get started →</Link>
-          </Reveal>
+  // Detect reduced-motion
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setReducedMotion(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [setReducedMotion])
 
-          <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Reveal delay={70}>
-              <MockCard>
-                <p style={{ color: '#8B7355', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 10 }}>This month</p>
-                <p style={{ fontFamily: 'var(--font-playfair)', fontWeight: 700, fontSize: 30, color: '#2C3531', lineHeight: 1, marginBottom: 4 }}>₹2,340</p>
-                <p style={{ color: '#8B7355', fontSize: 12, marginBottom: 14 }}>spent · ₹5,000 budget</p>
-                <div style={{ height: 6, borderRadius: 3, backgroundColor: '#E0D5C5', marginBottom: 12 }}>
-                  <div style={{ width: '47%', height: 6, borderRadius: 3, backgroundColor: '#2C3531' }} />
-                </div>
-                <div style={{ borderTop: '1px solid #E8DFD0', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[['Food', '₹840', '36%'], ['Transport', '₹420', '18%'], ['Books & Study', '₹680', '29%']].map(([l, a, p]) => (
-                    <div key={l} style={{ display: 'flex', justifyContent: 'space-between', color: '#8B7355', fontSize: 12 }}>
-                      <span>{l}</span><span>{a} · {p}</span>
-                    </div>
-                  ))}
-                </div>
-              </MockCard>
-            </Reveal>
-            <Reveal delay={140}>
-              <MockCard>
-                <p style={{ color: '#8B7355', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 10 }}>Pending splits</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#8B7355' }}>
-                    <span>Rahul owes you</span><span style={{ fontWeight: 600, color: '#2C3531' }}>₹350</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#8B7355' }}>
-                    <span>You owe Priya</span><span style={{ fontWeight: 600, color: '#C0392B' }}>₹175</span>
-                  </div>
-                </div>
-              </MockCard>
-            </Reveal>
-          </div>
-        </section>
+  return (
+    // Outer: tall scroll container — 600vh of scroll room
+    <div
+      ref={containerRef}
+      className="landing-page"
+      style={{ height: '600vh', position: 'relative' }}
+    >
+      <CustomCursor />
 
-        {/* Feature 03 — Community */}
-        <section
-          id="section-community"
-          style={{ position: 'relative', backgroundColor: '#0F0F0F', padding: '100px 48px', overflow: 'hidden' }}
-        >
-          <span aria-hidden style={{
-            position: 'absolute', right: 8, top: 8, fontFamily: 'var(--font-playfair)',
-            fontSize: 'clamp(80px, 18vw, 160px)', color: '#2C3531', opacity: 0.07,
-            fontWeight: 700, lineHeight: 1, pointerEvents: 'none', userSelect: 'none',
-          }}>03</span>
+      {/* Inner: sticky viewport — never leaves screen */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          height: '100svh',
+          overflow: 'hidden',
+          background: RICH_BG,
+        }}
+      >
+        {/* ── Nav ─────────────────────────────────────── */}
+        <Nav sv={sv} />
 
-          <Reveal>
-            <p style={{ color: '#F5A623', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', fontWeight: 500, marginBottom: 18 }}>Community</p>
-            <h2 style={{ fontFamily: 'var(--font-playfair)', fontWeight: 700, fontSize: 'clamp(30px, 4.5vw, 52px)', color: '#F5F5F0', lineHeight: 1.12, marginBottom: 18 }}>
-              Your batch&apos;s shared brain.
-            </h2>
-            <p style={{ color: '#555', fontSize: 14, lineHeight: 1.8, marginBottom: 28, maxWidth: '38ch' }}>
-              Upload PYQs, share notes, drop resource links. Upvote what actually helps. Post anonymously. Content auto-expires so the feed stays clean.
-            </p>
-            <Link href="/signup" data-magnetic style={{ color: '#F5A623', fontSize: 13, fontWeight: 500 }}>Get started →</Link>
-          </Reveal>
+        {/* ── Real photo — right side ─────────────────── */}
+        <FloatingImage />
 
-          <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { title: '3rd Sem DBMS Previous Year Papers', tag: 'CSE · 3rd sem', votes: 47, icon: '📎' },
-              { title: 'CN Lab Cycle Sheet — summary notes', tag: 'CSE · Networks', votes: 23, icon: '📝' },
-              { title: 'Best YouTube playlist for OS concepts', tag: 'CSE · OS', votes: 31, icon: '🔗' },
-            ].map((item, i) => (
-              <Reveal key={item.title} delay={i * 70}>
-                <MockCard dark>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
-                    <p style={{ color: '#F5F5F0', fontSize: 13, fontWeight: 500, lineHeight: 1.4 }}>{item.title}</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 26 }}>
-                    <span style={{ color: '#444', fontSize: 11 }}>{item.tag}</span>
-                    <span style={{ color: '#F5A623', fontSize: 11, fontWeight: 500, marginLeft: 'auto' }}>↑ {item.votes}</span>
-                  </div>
-                </MockCard>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
-        {/* CTA */}
-        <section
-          id="section-cta"
-          style={{ backgroundColor: '#F5A623', padding: '110px 48px', textAlign: 'center', position: 'relative' }}
-        >
-          <Reveal>
-            <p style={{ color: 'rgba(15,15,15,0.4)', fontSize: 10, letterSpacing: '0.35em', textTransform: 'uppercase', marginBottom: 20, fontWeight: 500 }}>
-              Free · No ads · No data selling
-            </p>
-            <h2 style={{ fontFamily: 'var(--font-playfair)', fontWeight: 700, fontSize: 'clamp(40px, 7vw, 72px)', color: '#0F0F0F', lineHeight: 1.05, marginBottom: 4 }}>
-              64 seats.
-            </h2>
-            <h2 style={{ fontFamily: 'var(--font-playfair)', fontWeight: 700, fontSize: 'clamp(40px, 7vw, 72px)', color: '#0F0F0F', lineHeight: 1.05, marginBottom: 36 }}>
-              One batch. Let&apos;s go.
-            </h2>
-            <p style={{ color: 'rgba(15,15,15,0.55)', fontSize: 14, marginBottom: 36, maxWidth: 300, margin: '0 auto 36px' }}>
-              Sign up in 30 seconds. Install on your phone. Start tracking.
-            </p>
-            <Link
-              href="/signup"
-              data-magnetic
+        {/* ── HERO ────────────────────────────────────── */}
+        <TextPanel sv={sv} section="hero">
+          {/* Gold glow behind hero text */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: '30%',
+              left: '25%',
+              width: '60vh',
+              height: '60vh',
+              background:
+                'radial-gradient(circle,rgba(201,169,97,0.07) 0%,transparent 65%)',
+              pointerEvents: 'none',
+              transform: 'translate(-50%,-50%)',
+            }}
+          />
+          <h1
+            style={{
+              fontFamily: FF,
+              fontSize: 'clamp(4.5rem,7vw,7rem)',
+              fontWeight: 900,
+              lineHeight: 0.9,
+              letterSpacing: '-0.045em',
+              color: CREAM,
+              margin: 0,
+            }}
+          >
+            CHOTU
+          </h1>
+          <p
+            style={{
+              fontFamily: FF,
+              fontSize: 'clamp(1.25rem,1.8vw,1.625rem)',
+              fontWeight: 300,
+              lineHeight: 1.3,
+              letterSpacing: '-0.01em',
+              color: DIM,
+              marginTop: '1.5rem',
+              maxWidth: '28ch',
+            }}
+          >
+            Made for the student who refuses to lose track.
+          </p>
+          {/* Scroll cue */}
+          <div aria-hidden style={{ marginTop: '3rem' }}>
+            <div
+              className="lc-scroll-cue"
               style={{
-                display: 'inline-flex', alignItems: 'center',
-                padding: '16px 32px', backgroundColor: '#0F0F0F', color: '#F5A623',
-                fontWeight: 600, fontSize: 13, letterSpacing: '0.06em', transition: 'opacity 0.2s',
+                width: 1,
+                height: 56,
+                background:
+                  'linear-gradient(to bottom,rgba(245,240,232,0.35),transparent)',
+                marginLeft: 2,
               }}
-            >
-              Sign up — it&apos;s free
-            </Link>
-          </Reveal>
-        </section>
+            />
+          </div>
+        </TextPanel>
 
-      </div>{/* end scrollable content */}
+        {/* ── TRANSITION ─────────────────────────────── */}
+        <TextPanel sv={sv} section="transition">
+          <p
+            style={{
+              fontFamily: FF,
+              fontSize: 'clamp(2rem,2.8vw,2.75rem)',
+              fontWeight: 400,
+              lineHeight: 1.2,
+              letterSpacing: '-0.025em',
+              color: CREAM,
+              maxWidth: '22ch',
+            }}
+          >
+            One place.
+            <br />
+            <span style={{ color: DIM }}>
+              For every part of your academic life.
+            </span>
+          </p>
+        </TextPanel>
+
+        {/* ── ASSIGNMENTS ────────────────────────────── */}
+        <TextPanel sv={sv} section="assignments">
+          <PillarContent
+            tag="Assignments"
+            heading="Never miss a deadline."
+            body="Log it. Track it. Set a reminder. Your assignments — due dates, subjects, notes, attachments — held exactly where you need them."
+            rows={[
+              { label: 'JAVA ASSIGNMENT', value: 'due in 3 days', accent: 'gold' },
+              { label: 'PYTHON PROJECT',  value: 'submitted',     accent: 'dim'  },
+              { label: 'C POINTERS LAB',  value: 'due tomorrow',  accent: 'gold' },
+            ]}
+          />
+        </TextPanel>
+
+        {/* ── EXAMS ──────────────────────────────────── */}
+        <TextPanel sv={sv} section="exams">
+          <PillarContent
+            tag="Exams"
+            heading="See the full picture."
+            body="Map your topics. Mark what's revised. Chotu shows you the shape of what you know — and where the gaps are."
+            rows={[
+              { label: 'JAVA',   value: '████████░░  8 of 10' },
+              { label: 'PYTHON', value: '████░░░░░░  4 of 10' },
+              { label: 'C',      value: '██████████  READY',  accent: 'dim' },
+            ]}
+          />
+        </TextPanel>
+
+        {/* ── EXPENSES ───────────────────────────────── */}
+        <TextPanel sv={sv} section="expenses">
+          <PillarContent
+            tag="Expenses"
+            heading="The quiet math of paise."
+            body="Log what you spend. Set a budget. Split costs with friends. Chotu does the arithmetic — you do everything else."
+            rows={[
+              { label: 'SPENT THIS MONTH', value: '₹4,200'                },
+              { label: 'BUDGET REMAINING', value: '₹1,800',  accent: 'dim'  },
+              { label: 'FOOD',             value: '₹1,450  ↑ 12%', accent: 'gold' },
+            ]}
+          />
+        </TextPanel>
+
+        {/* ── VOICE ──────────────────────────────────── */}
+        <TextPanel sv={sv} section="voice">
+          <PillarContent
+            tag="Voice"
+            heading="Speak it. Chotu logs it."
+            body={`Say "spent 150 on food" and it's in expenses. Say "exam Friday at 10" and it's on your tracker. Your voice is an entry point for everything.`}
+            monoLabels
+            rows={[
+              { label: '"spent 150 on books"',  value: '→ ₹150, Books & Study'         },
+              { label: '"exam friday at 10am"', value: '→ Exams, Friday 10:00'          },
+              { label: '"remind me at 8pm"',    value: '→ Reminder set', accent: 'dim'  },
+            ]}
+          />
+        </TextPanel>
+
+        {/* ── COMMUNITY ──────────────────────────────── */}
+        <TextPanel sv={sv} section="community">
+          <PillarContent
+            tag="Community"
+            heading="One signal at a time."
+            body="Upload a note. Share a resource. Vote on what helped. Every student who uses Chotu adds to what every other student finds."
+            rows={[
+              { label: 'NOTES SHARED',    value: '1,247'                          },
+              { label: 'TOP RESOURCE',    value: 'Java OOP Notes 2024'            },
+              { label: 'ADDED THIS WEEK', value: '+34 resources', accent: 'dim'   },
+            ]}
+          />
+        </TextPanel>
+
+        {/* ── CLOSER ─────────────────────────────────── */}
+        <TextPanel sv={sv} section="closer">
+          <p
+            style={{
+              fontFamily: FF,
+              fontSize: 'clamp(1.75rem,2.4vw,2.5rem)',
+              fontWeight: 400,
+              lineHeight: 1.22,
+              letterSpacing: '-0.025em',
+              color: CREAM,
+              maxWidth: '22ch',
+              marginBottom: '2.5rem',
+            }}
+          >
+            CHOTU is for the student who takes their academic life seriously.
+          </p>
+          <Link
+            href="/signup"
+            data-magnetic
+            style={{
+              display: 'inline-block',
+              background: GOLD,
+              color: BG,
+              fontWeight: 700,
+              fontSize: '1rem',
+              padding: '1rem 2.25rem',
+              borderRadius: '100px',
+              textDecoration: 'none',
+              letterSpacing: '-0.015em',
+              alignSelf: 'flex-start',
+            }}
+          >
+            Start using Chotu.
+          </Link>
+          <p
+            style={{
+              marginTop: '1.25rem',
+              fontSize: '0.8125rem',
+              color: DIM,
+              opacity: 0.65,
+              lineHeight: 1.55,
+            }}
+          >
+            No batch code required.
+            <br />
+            Sign up with your college email.
+          </p>
+        </TextPanel>
+
+        {/* ── Keyboard-accessible skip link ─────────── */}
+        <a
+          href="/signup"
+          style={{
+            position: 'absolute',
+            left: '-9999px',
+            top: 'auto',
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+          }}
+          onFocus={(e) => { e.currentTarget.style.left = '1rem' }}
+          onBlur={(e) => { e.currentTarget.style.left = '-9999px' }}
+        >
+          Skip to sign up
+        </a>
+      </div>
     </div>
   )
 }

@@ -129,67 +129,89 @@
   }
 }
 
-/* ── Landing page — cursor + reduced-motion ─────────────────────── */
+/* ── Direction C: Signal at Midnight — landing palette ──────────── */
 
-/* Hide native cursor only while custom cursor is active */
+:root {
+  --lc-bg:     #0A1A10;
+  --lc-cream:  #F5F0E8;
+  --lc-gold:   #C9A961;
+  --lc-dim:    rgba(245, 240, 232, 0.45);
+  --lc-faint:  rgba(245, 240, 232, 0.22);
+  --lc-card:   rgba(245, 240, 232, 0.055);
+  --lc-border: rgba(245, 240, 232, 0.08);
+}
+
+/* ── Custom cursor — desktop landing only ───────────────────────── */
+
 .landing-page,
 .landing-page * {
   cursor: none !important;
 }
 
-/* Restore native cursor + kill all animations for reduced-motion users */
 @media (prefers-reduced-motion: reduce) {
   .landing-page,
   .landing-page * {
     cursor: auto !important;
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
   }
 }
 
-/* ── Landing page cinema animations ─────────────────────────────── */
+/* ── Mobile scroll-reveal ───────────────────────────────────────── */
 
-@keyframes chotu-slam-up {
-  from {
-    transform: translateY(110%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+.lm-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.75s ease, transform 0.75s ease;
 }
 
-@keyframes chotu-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+.lm-reveal.lm-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lm-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
   }
 }
 
-.chotu-nav-animate {
-  animation: chotu-fade-up 0.35s ease 0s both;
+/* ── Loader fade-out ────────────────────────────────────────────── */
+
+@keyframes lc-loader-out {
+  to { opacity: 0; pointer-events: none; }
 }
 
-.chotu-slam-1 {
-  display: block;
-  animation: chotu-slam-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+.lc-loader-exit {
+  animation: lc-loader-out 0.5s ease 0.2s forwards;
 }
 
-.chotu-slam-2 {
-  display: block;
-  animation: chotu-slam-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.32s both;
+/* ── Scroll-cue pulse ───────────────────────────────────────────── */
+
+@keyframes lc-pulse-down {
+  0%, 100% { opacity: 0.3; transform: scaleY(1); }
+  50%       { opacity: 0.7; transform: scaleY(1.15); }
 }
 
-.chotu-sub-animate {
-  animation: chotu-fade-up 0.4s ease 0.58s both;
+.lc-scroll-cue {
+  animation: lc-pulse-down 2s ease-in-out infinite;
+  transform-origin: top center;
+}
+/* Object float — real photo bobbing */
+
+@keyframes lc-obj-float {
+  0%, 100% { transform: translateY(0px)   rotate(1.5deg); }
+  50%       { transform: translateY(-20px) rotate(-1deg);  }
 }
 
-.chotu-cta-animate {
-  animation: chotu-fade-up 0.4s ease 0.72s both;
+.lc-obj-float {
+  animation: lc-obj-float 5.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-obj-float {
+    animation: none !important;
+    transform: none !important;
+  }
 }

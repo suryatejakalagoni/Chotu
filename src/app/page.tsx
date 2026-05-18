@@ -4,9 +4,9 @@ import LandingDesktop from '@/components/landing/landing-desktop'
 import LandingMobile from '@/components/landing/landing-mobile'
 
 export const metadata: Metadata = {
-  title: "CHOTU — Your batch's command center",
+  title: 'CHOTU — Your student life, organized.',
   description:
-    'Assignments, exams, expenses, splits, and community hub for college students.',
+    'Track assignments, exams, expenses, and more. Your personal academic companion.',
 }
 
 const MOBILE_RE =
