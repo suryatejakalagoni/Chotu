@@ -41,7 +41,9 @@ export const splitSchema = z
       0
     )
     const total = Math.round(data.total_amount * 100)
-    if (Math.abs(sharesSum - total) > 1) {
+    // Tolerance = shares.length paise: equal-split remainder is at most (n-1) paise
+    // when payer absorbs the difference (Decision 2B).
+    if (Math.abs(sharesSum - total) > data.shares.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Share amounts (₹${(sharesSum / 100).toFixed(2)}) must equal total (₹${(total / 100).toFixed(2)})`,

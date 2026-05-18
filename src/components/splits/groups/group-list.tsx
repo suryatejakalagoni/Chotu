@@ -8,9 +8,10 @@ import type { GroupWithBalance } from '@/types/splits'
 
 interface GroupListProps {
   groups: GroupWithBalance[]
+  friends: Array<{ id: string; name: string }>
 }
 
-export function GroupList({ groups }: GroupListProps) {
+export function GroupList({ groups, friends }: GroupListProps) {
   const [showAdd, setShowAdd] = useState(false)
 
   return (
@@ -30,7 +31,7 @@ export function GroupList({ groups }: GroupListProps) {
 
       <div className="space-y-2">
         {groups.map((g) => (
-          <GroupCard key={g.id} group={g} />
+          <GroupCard key={g.id} group={g} friends={friends} />
         ))}
       </div>
 

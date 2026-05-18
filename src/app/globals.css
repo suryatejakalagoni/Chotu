@@ -129,6 +129,25 @@
   }
 }
 
+/* ── Landing page — cursor + reduced-motion ─────────────────────── */
+
+/* Hide native cursor only while custom cursor is active */
+.landing-page,
+.landing-page * {
+  cursor: none !important;
+}
+
+/* Restore native cursor + kill all animations for reduced-motion users */
+@media (prefers-reduced-motion: reduce) {
+  .landing-page,
+  .landing-page * {
+    cursor: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
 /* ── Landing page cinema animations ─────────────────────────────── */
 
 @keyframes chotu-slam-up {

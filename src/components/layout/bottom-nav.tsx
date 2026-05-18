@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BookOpen, Receipt, Users, GraduationCap } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Receipt, Users, GraduationCap, ArrowLeftRight } from 'lucide-react'
 
 const NAV = [
   { href: '/dashboard',   label: 'Home',        Icon: LayoutDashboard },
   { href: '/assignments', label: 'Assignments',  Icon: BookOpen },
   { href: '/exams',       label: 'Exams',        Icon: GraduationCap },
   { href: '/expenses',    label: 'Expenses',     Icon: Receipt },
+  { href: '/splits',      label: 'Splits',       Icon: ArrowLeftRight },
   { href: '/community',   label: 'Community',    Icon: Users },
 ]
 

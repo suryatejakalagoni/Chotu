@@ -17,7 +17,6 @@ export function FriendCard({ friend }: FriendCardProps) {
   const [showEdit, setShowEdit] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteMessage, setDeleteMessage] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const isRemoved = Boolean(friend.deleted_at)
@@ -30,12 +29,6 @@ export function FriendCard({ friend }: FriendCardProps) {
 
     if (result.error) {
       setDeleteError(result.error)
-      return
-    }
-
-    if (result.hasOpenSplits) {
-      setDeleteMessage('Friend removed. Their open splits are preserved.')
-      setTimeout(() => setShowDelete(false), 1500)
       return
     }
 
@@ -122,12 +115,6 @@ export function FriendCard({ friend }: FriendCardProps) {
             {deleteError && (
               <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">
                 {deleteError}
-              </p>
-            )}
-
-            {deleteMessage && (
-              <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded px-3 py-2">
-                {deleteMessage}
               </p>
             )}
 

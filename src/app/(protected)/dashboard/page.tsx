@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { Mic } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { ExpenseDashboardWidget } from '@/components/expenses/dashboard-widget'
 import { RecentExpensesWidget } from '@/components/expenses/recent-expenses-widget'
@@ -10,6 +9,9 @@ import { SplitsDashboardWidget } from '@/components/splits/splits/dashboard-widg
 import { CommunityDashboardWidget } from '@/components/community/dashboard-widget'
 import { SavingsGoalsWidget } from '@/components/savings/savings-goals-widget'
 import { Card, CardContent } from '@/components/ui/card'
+import { MicButton } from '@/components/voice/mic-button'
+import { VoiceModal } from '@/components/voice/voice-modal'
+import { UndoButton } from '@/components/voice/undo-button'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -56,28 +58,16 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        {/* ── Voice placeholder — full width, prominent ── */}
-        <Card className="border-dashed">
+        {/* ── Voice input — mic button + undo ── */}
+        <Card>
           <CardContent className="py-5">
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-muted shrink-0">
-                <Mic size={24} className="text-muted-foreground" />
-              </div>
-              <div className="text-center sm:text-left">
-                <p className="font-medium text-sm">Voice Input</p>
-                <p className="text-xs text-muted-foreground mt-0.5 max-w-sm">
-                  Coming Day 12. Works best on Android Chrome — iPhone Safari support is limited.
-                </p>
-              </div>
-              <button
-                disabled
-                className="sm:ml-auto px-4 py-2 text-sm rounded-md bg-muted text-muted-foreground cursor-not-allowed opacity-60 shrink-0"
-              >
-                Coming soon
-              </button>
+            <MicButton />
+            <div className="mt-3">
+              <UndoButton />
             </div>
           </CardContent>
         </Card>
+        <VoiceModal />
 
         {/* ── 2-column grid on md+, single column on mobile ── */}
         <div className="grid gap-4 md:grid-cols-2">

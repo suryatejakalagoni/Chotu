@@ -6,6 +6,7 @@ const PROTECTED_ROUTES = [
   "/assignments",
   "/exams",
   "/expenses",
+  "/splits",
   "/community",
 ];
 

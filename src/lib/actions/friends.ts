@@ -97,9 +97,7 @@ export async function updateFriend(
   return {}
 }
 
-export async function deleteFriend(
-  id: string
-): Promise<ActionResult & { hasOpenSplits?: boolean }> {
+export async function deleteFriend(id: string): Promise<ActionResult> {
   if (!id) return { error: 'Invalid friend.' }
 
   try {
@@ -111,12 +109,11 @@ export async function deleteFriend(
       .select('id')
       .eq('id', id)
       .eq('user_id', user.id)
-      .is('deleted_at', null)
       .maybeSingle()
 
     if (!friend) return { error: 'Friend not found.' }
 
-    // Check for open splits
+    // Hard block: refuse delete if any unsettled splits exist
     const { count } = await supabase
       .from('split_shares')
       .select('id', { count: 'exact', head: true })
@@ -124,30 +121,12 @@ export async function deleteFriend(
       .eq('is_settled', false)
 
     if ((count ?? 0) > 0) {
-      // Soft delete — preserve history
-      const { error } = await supabase
-        .from('friends')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('user_id', user.id)
-
-      if (error) {
-        console.error('[deleteFriend soft]', error.message)
-        return { error: 'Could not remove friend. Please try again.' }
+      return {
+        error: `This friend has ${count} unsettled split${(count ?? 0) !== 1 ? 's' : ''}. Settle them before deleting.`,
       }
-
-      // Remove from all groups
-      await supabase
-        .from('split_group_members')
-        .delete()
-        .eq('friend_id', id)
-
-      revalidatePath('/splits')
-      return { hasOpenSplits: true }
     }
 
-    // No open splits — hard delete
-    // Remove from groups first
+    // Remove from all groups first (cascade)
     await supabase.from('split_group_members').delete().eq('friend_id', id)
 
     const { error } = await supabase
@@ -157,7 +136,7 @@ export async function deleteFriend(
       .eq('user_id', user.id)
 
     if (error) {
-      console.error('[deleteFriend hard]', error.message)
+      console.error('[deleteFriend]', error.message)
       return { error: 'Could not delete friend. Please try again.' }
     }
   } catch {

@@ -92,7 +92,12 @@ export default async function SplitsPage({ searchParams }: PageProps) {
 
         {activeTab === 'friends' && <FriendList friends={friends} />}
 
-        {activeTab === 'groups' && <GroupList groups={groups} />}
+        {activeTab === 'groups' && (
+          <GroupList
+            groups={groups}
+            friends={friends.filter((f) => !f.deleted_at).map((f) => ({ id: f.id, name: f.name }))}
+          />
+        )}
 
         {activeTab === 'balances' && (
           <BalanceSummary friends={friends} totalOwed={totalOwed} />

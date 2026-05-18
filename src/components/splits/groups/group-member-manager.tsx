@@ -19,12 +19,14 @@ interface GroupMemberManagerProps {
   groupId: string
   currentMembers: Member[]
   allFriends: Friend[]
+  onRefresh?: () => void
 }
 
 export function GroupMemberManager({
   groupId,
   currentMembers,
   allFriends,
+  onRefresh,
 }: GroupMemberManagerProps) {
   const [error, setError] = useState<string | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
@@ -39,7 +41,11 @@ export function GroupMemberManager({
     setLoadingId(friendId)
     const result = await removeMemberFromGroup(groupId, friendId)
     setLoadingId(null)
-    if (result.error) setError(result.error)
+    if (result.error) {
+      setError(result.error)
+    } else {
+      onRefresh?.()
+    }
   }
 
   const handleAdd = async () => {
@@ -52,6 +58,7 @@ export function GroupMemberManager({
       setError(result.error)
     } else {
       setAddingId('')
+      onRefresh?.()
     }
   }
 

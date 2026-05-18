@@ -1,23 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { GroupForm } from './group-form'
-import { deleteGroup } from '@/lib/actions/groups'
+import { GroupMemberManager } from './group-member-manager'
+import { deleteGroup, getGroupMembers } from '@/lib/actions/groups'
 import { formatRupees } from '@/lib/split-utils'
 import type { GroupWithBalance } from '@/types/splits'
 
 interface GroupCardProps {
   group: GroupWithBalance
+  friends: Array<{ id: string; name: string }>
 }
 
-export function GroupCard({ group }: GroupCardProps) {
+type Member = { id: string; friend_id: string; name: string }
+
+export function GroupCard({ group, friends }: GroupCardProps) {
   const [showEdit, setShowEdit] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
+  const [showMembers, setShowMembers] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [members, setMembers] = useState<Member[]>([])
+  const [membersLoading, setMembersLoading] = useState(false)
+
+  const loadMembers = useCallback(async () => {
+    setMembersLoading(true)
+    const result = await getGroupMembers(group.id)
+    setMembers(result.members)
+    setMembersLoading(false)
+  }, [group.id])
+
+  useEffect(() => {
+    if (showMembers) {
+      loadMembers()
+    }
+  }, [showMembers, loadMembers])
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -41,9 +61,12 @@ export function GroupCard({ group }: GroupCardProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm">{group.name}</span>
-                <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5">
+                <button
+                  onClick={() => setShowMembers(true)}
+                  className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 hover:bg-blue-200 transition-colors"
+                >
                   {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
-                </span>
+                </button>
                 {group.total_owed > 0 ? (
                   <span className="inline-flex items-center rounded-full bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5">
                     {formatRupees(group.total_owed)} owed
@@ -89,6 +112,7 @@ export function GroupCard({ group }: GroupCardProps) {
         </CardContent>
       </Card>
 
+      {/* Edit name/description */}
       {showEdit && (
         <GroupForm
           mode="edit"
@@ -98,6 +122,7 @@ export function GroupCard({ group }: GroupCardProps) {
         />
       )}
 
+      {/* Delete confirmation */}
       {showDelete && (
         <Dialog open onOpenChange={(open) => { if (!open) setShowDelete(false) }}>
           <DialogContent className="sm:max-w-sm">
@@ -128,6 +153,34 @@ export function GroupCard({ group }: GroupCardProps) {
                 disabled={deleting}
               >
                 {deleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Members dialog */}
+      {showMembers && (
+        <Dialog open onOpenChange={(open) => { if (!open) setShowMembers(false) }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{group.name} — Members</DialogTitle>
+            </DialogHeader>
+
+            {membersLoading ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Loading…</p>
+            ) : (
+              <GroupMemberManager
+                groupId={group.id}
+                currentMembers={members}
+                allFriends={friends}
+                onRefresh={loadMembers}
+              />
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowMembers(false)}>
+                Done
               </Button>
             </DialogFooter>
           </DialogContent>
