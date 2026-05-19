@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono, Fraunces, DM_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Fraunces, DM_Mono, Caveat, Inter } from 'next/font/google'
 import { ServiceWorkerRegistration } from '@/components/layout/service-worker-registration'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import './globals.css'
@@ -24,6 +24,18 @@ const dmMono = DM_Mono({
   variable: '--font-dm-mono',
   subsets: ['latin'],
   weight: ['400', '500'],
+  display: 'swap',
+})
+
+const caveat = Caveat({
+  variable: '--font-caveat',
+  subsets: ['latin'],
+  display: 'swap',
+})
+
+const inter = Inter({
+  variable: '--font-inter',
+  subsets: ['latin'],
   display: 'swap',
 })
 
@@ -64,10 +76,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${dmMono.variable} h-full antialiased`}
+      className={`dark ${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${dmMono.variable} ${caveat.variable} ${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col overscroll-none">
         <ThemeProvider />
         {children}
         <ServiceWorkerRegistration />

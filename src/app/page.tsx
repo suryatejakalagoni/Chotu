@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
-import { headers } from 'next/headers'
-import LandingDesktop from '@/components/landing/landing-desktop'
-import LandingMobile from '@/components/landing/landing-mobile'
+import Header from '@/components/landing/Header'
+import ScrollScene from '@/components/landing/ScrollScene'
+import CTASection from '@/components/landing/CTASection'
 
 export const metadata: Metadata = {
   title: 'CHOTU — Your student life, organized.',
@@ -9,11 +9,12 @@ export const metadata: Metadata = {
     'Track assignments, exams, expenses, and more. Your personal academic companion.',
 }
 
-const MOBILE_RE =
-  /Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|webOS/i
-
-export default async function LandingPage() {
-  const ua = (await headers()).get('user-agent') ?? ''
-  const isMobile = MOBILE_RE.test(ua)
-  return isMobile ? <LandingMobile /> : <LandingDesktop />
+export default function LandingPage() {
+  return (
+    <main className="overscroll-none">
+      <Header />
+      <ScrollScene />
+      <CTASection />
+    </main>
+  )
 }
