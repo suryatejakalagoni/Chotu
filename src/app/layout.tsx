@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono, Fraunces, DM_Mono, Caveat, Inter } from 'next/font/google'
+import { Geist, Geist_Mono, Fraunces, DM_Mono, Caveat, Inter, Space_Grotesk } from 'next/font/google'
 import { ServiceWorkerRegistration } from '@/components/layout/service-worker-registration'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import './globals.css'
@@ -35,6 +35,12 @@ const caveat = Caveat({
 
 const inter = Inter({
   variable: '--font-inter',
+  subsets: ['latin'],
+  display: 'swap',
+})
+
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
   subsets: ['latin'],
   display: 'swap',
 })
@@ -76,7 +82,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${dmMono.variable} ${caveat.variable} ${inter.variable} h-full antialiased`}
+      className={`dark ${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${dmMono.variable} ${caveat.variable} ${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col overscroll-none">

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
-import Header from '@/components/landing/Header'
+import SiteHeader from '@/components/site-header'
 import ScrollScene from '@/components/landing/ScrollScene'
-import CTASection from '@/components/landing/CTASection'
 
 export const metadata: Metadata = {
   title: 'CHOTU — Your student life, organized.',
@@ -11,10 +10,9 @@ export const metadata: Metadata = {
 
 export default function LandingPage() {
   return (
-    <main className="overscroll-none">
-      <Header />
+    <main style={{ overscrollBehavior: 'none' }}>
+      <SiteHeader />
       <ScrollScene />
-      <CTASection />
     </main>
   )
 }

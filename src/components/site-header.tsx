@@ -1,8 +1,30 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
-export default function Header() {
+const NAV_LINKS = [
+  { href: '/features', label: 'Features', show: 'sm' },
+  { href: '/about',    label: 'About',    show: 'md' },
+  { href: '/help',     label: 'Help',     show: 'md' },
+] as const
+
+export default function SiteHeader() {
+  const pathname = usePathname()
+
+  function navLinkStyle(href: string): React.CSSProperties {
+    const active = pathname === href
+    return {
+      fontSize: '0.9rem',
+      color: active ? '#16181d' : 'rgba(22,24,29,0.65)',
+      textDecoration: 'none',
+      fontWeight: active ? 600 : 500,
+      borderBottom: active ? '1.5px solid #16181d' : '1.5px solid transparent',
+      paddingBottom: '1px',
+      transition: 'color 0.15s, border-color 0.15s',
+    }
+  }
+
   return (
     <header
       style={{
@@ -47,43 +69,16 @@ export default function Header() {
         }}
         aria-label="Primary navigation"
       >
-        {/* Text links — hidden on small screens */}
-        <Link
-          href="#features"
-          style={{
-            fontSize: '0.9rem',
-            color: 'rgba(22,24,29,0.65)',
-            textDecoration: 'none',
-            fontWeight: 500,
-          }}
-          className="hidden sm:block"
-        >
-          Features
-        </Link>
-        <Link
-          href="#about"
-          style={{
-            fontSize: '0.9rem',
-            color: 'rgba(22,24,29,0.65)',
-            textDecoration: 'none',
-            fontWeight: 500,
-          }}
-          className="hidden md:block"
-        >
-          About
-        </Link>
-        <Link
-          href="#help"
-          style={{
-            fontSize: '0.9rem',
-            color: 'rgba(22,24,29,0.65)',
-            textDecoration: 'none',
-            fontWeight: 500,
-          }}
-          className="hidden md:block"
-        >
-          Help
-        </Link>
+        {NAV_LINKS.map(({ href, label, show }) => (
+          <Link
+            key={href}
+            href={href}
+            style={navLinkStyle(href)}
+            className={show === 'sm' ? 'hidden sm:block' : 'hidden md:block'}
+          >
+            {label}
+          </Link>
+        ))}
 
         {/* Sign in — hidden on very small screens */}
         <Link

@@ -2,6 +2,39 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* ── Clash Display (local font, used by landing hero) ──────────── */
+@font-face {
+  font-family: 'Clash Display';
+  src: url('/fonts/ClashDisplay-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Landing feature text — needs responsive media query ────────── */
+.landing-feature {
+  position: absolute;
+  top: 50%;
+  left: 58%;
+  transform: translateY(-50%);
+  z-index: 7;
+  text-align: left;
+  opacity: 0;
+  max-width: min(36vw, 400px);
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .landing-feature {
+    left: 50%;
+    top: auto;
+    bottom: 14%;
+    transform: translateX(-50%);
+    text-align: center;
+    max-width: 86vw;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -213,5 +246,164 @@
   .lc-obj-float {
     animation: none !important;
     transform: none !important;
+  }
+}
+
+/* ── Auth page: callback object + motion toggle ─────────────────────
+ *
+ * .auth-obj          — the floating PNG in the page margin.
+ *                      Hidden on narrow viewports so it never
+ *                      overlaps the form card on mobile.
+ *
+ * .auth-motion-toggle — the A/B/C dev tool chip.
+ *                      Hidden when the OS requests reduced motion
+ *                      (the toggle is useless when GSAP is skipped).
+ * ──────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .auth-obj {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-motion-toggle {
+    display: none !important;
+  }
+}
+
+/* ── Landing owl speech bubble ───────────────────────────────────────
+ *
+ * Default (all screens including mobile): bubble sits ABOVE the owl.
+ * On wide screens (≥800 px) it shifts to the right where there's room.
+ * Tail arrow flips to match each position.
+ *
+ * Two pseudo-elements per tail: ::before = border shadow, ::after = white fill.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+.landing-owl-bubble {
+  position:    absolute;
+  /* Above the owl */
+  bottom:      calc(100% + 10px);
+  left:        50%;
+  transform:   translateX(-50%);
+
+  background:    rgba(255,255,255,0.96);
+  border:        1px solid rgba(0,0,0,0.1);
+  border-radius: 10px;
+  padding:       5px 11px;
+  box-shadow:    0 2px 14px rgba(0,0,0,0.09);
+
+  font-family:   var(--font-fraunces,'Fraunces'),serif;
+  font-size:     clamp(11px,1vw,13px);
+  color:         #16181d;
+  white-space:   nowrap;
+  pointer-events: none;
+  z-index:       1;
+}
+
+/* Down-pointing tail (bubble is above owl) */
+.landing-owl-bubble::before {
+  content:      '';
+  position:     absolute;
+  top:          100%;
+  left:         50%;
+  transform:    translateX(-50%);
+  border:       7px solid transparent;
+  border-top-color: rgba(0,0,0,0.09);
+}
+.landing-owl-bubble::after {
+  content:      '';
+  position:     absolute;
+  top:          calc(100% - 1px);
+  left:         50%;
+  transform:    translateX(-50%);
+  border:       6px solid transparent;
+  border-top-color: rgba(255,255,255,0.96);
+}
+
+/* Wide screens: bubble to the right of the owl; left-pointing tail */
+@media (min-width: 800px) {
+  .landing-owl-bubble {
+    left:      calc(100% + 10px);
+    bottom:    auto;
+    top:       50%;
+    transform: translateY(-50%);
+  }
+
+  .landing-owl-bubble::before {
+    top:       50%;
+    left:      auto;
+    right:     100%;
+    transform: translateY(-50%);
+    border-top-color:   transparent;
+    border-right-color: rgba(0,0,0,0.09);
+  }
+  .landing-owl-bubble::after {
+    top:       50%;
+    left:      auto;
+    right:     calc(100% - 1px);
+    transform: translateY(-50%);
+    border-top-color:   transparent;
+    border-right-color: rgba(255,255,255,0.96);
+  }
+}
+
+/* ── Auth owl fly-in entrance ───────────────────────────────────── */
+
+@keyframes owl-flyin {
+  from {
+    opacity:   0;
+    transform: translateY(-120px) scale(0.85);
+  }
+  to {
+    opacity:   1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/*
+ * Applied to the wrapper div in AuthSceneClient while isPerched === false.
+ * `both` fill-mode keeps the start state before the animation fires and
+ * the end state after it completes (guards against a one-frame flash).
+ */
+.owl-flyin {
+  animation: owl-flyin 0.7s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .owl-flyin {
+    animation:  none   !important;
+    opacity:    1      !important;
+    transform:  none   !important;
+  }
+}
+
+/* ── Landing owl — CTA section flying-in-place hover ───────────── */
+
+@keyframes lc-owl-hover {
+  0%, 100% { transform: translateY(0px);   }
+  50%       { transform: translateY(-10px); }
+}
+
+.landing-owl-wrap {
+  animation: lc-owl-hover 2.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-owl-wrap {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* ── Owl animations — all disabled when OS requests reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .owl-ears,
+  .owl-pupils-scale,
+  .owl-wing-left,
+  .owl-wing-right,
+  .landing-owl-bubble {
+    transition: none !important;
   }
 }

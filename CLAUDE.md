@@ -41,3 +41,87 @@ A PWA for ~64 college classmates in Telangana. Features: assignment tracker, exa
 - Explain at basic JS/HTML/CSS level. User is not a Next.js/Supabase expert.
 - If a step takes >2 hours, flag it and propose a cut.
 
+---
+
+## Changelog
+
+### 2026-05-22 — Landing page finalized; nav wired; public pages added
+
+**Landing page is now considered finalized. Do not touch the drawer-cinema GSAP
+scroll animation, the GSAP timeline values, or any code in
+`components/landing/ScrollScene.tsx` without explicit instruction.**
+
+#### Files created
+- `src/components/site-header.tsx` — shared frosted-glass header rendered on
+  the landing page and all three new public routes. Uses `usePathname()` to
+  highlight the active nav link. All nav items use Next.js `<Link>`.
+- `src/app/features/page.tsx` — public /features route; describes all five
+  CHOTU tools (Assignment Tracker, Exam Tracker, Expense Tracker, Community
+  Hub, Calendar Sync) with real placeholder copy.
+- `src/app/about/page.tsx` — public /about route; explains what CHOTU is,
+  who it is for, how it was built.
+- `src/app/help/page.tsx` — public /help route; eight FAQ entries + "Still
+  stuck?" CTA card + contact email (suryatejakalagoni@gmail.com) at the
+  bottom.
+
+#### Files changed
+- `src/app/page.tsx` — imports `SiteHeader` from `site-header.tsx` (was
+  importing the old `components/landing/Header.tsx`).
+- `src/components/landing/ScrollScene.tsx` — removed `position: relative`
+  from the 900 vh scroll spacer and bumped stage to `zIndex: 1` so the CTA
+  buttons (Get started → /signup, Sign in → /login) are not blocked by the
+  spacer in the hit-testing stacking order.
+- `CLAUDE.md` — this entry.
+
+#### Routing summary
+| Nav item | Destination |
+|---|---|
+| Features | /features |
+| About | /about |
+| Help | /help |
+| Sign in (header + hero outline button) | /login |
+| Sign up (header pill) | /signup |
+| Get started (hero primary button) | /signup |
+
+#### Dead code (safe to delete, no errors)
+- `src/components/landing/Header.tsx` — superseded by `site-header.tsx`.
+
+---
+
+### 2026-05-22 — Auth pages restyled to match landing (Phase 1)
+
+Auth pages now share the landing's warm-oak palette, type system, and visual
+language. No auth logic, validation, server actions, or API calls were touched.
+
+#### Files created
+- `src/components/auth/AuthSceneClient.tsx` — Client Component that owns the
+  entire auth visual layer: warm gradient background, shared SiteHeader,
+  GSAP-animated PNG object (checklist on /signup, clock on /login), frosted
+  form card, and the A/B/C motion-style toggle.
+
+#### Files changed
+- `src/app/(auth)/layout.tsx` — now a thin server-component shell that just
+  renders `<AuthSceneClient>{children}</AuthSceneClient>`. All visual logic
+  moved to AuthSceneClient.
+- `src/app/(auth)/login/page.tsx` — heading changed to "Welcome back" with
+  yellow marker on "back"; styled with Fraunces + `#16181d`.
+- `src/app/(auth)/signup/page.tsx` — heading "Create your account" with
+  yellow marker on "account"; same type treatment.
+- `src/components/auth/LoginForm.tsx` — restyled to warm palette:
+  `#eceef1` inputs, `rgba(0,0,0,0.2)` borders, `#16181d` text,
+  `#1a1a1a` primary button, `#dc2626` errors. No logic changes.
+- `src/components/auth/SignupForm.tsx` — same restyle as LoginForm.
+- `src/app/globals.css` — added `.auth-obj` (hides PNG on ≤768 px) and
+  `.auth-motion-toggle` (hides toggle when prefers-reduced-motion is set).
+
+#### Motion styles (A/B/C toggle, bottom-right corner)
+- **A — Lift & hold** (default): power2.out rise to −22 px, hold 1.4 s,
+  power1.in settle, brief rest. Gravity-aware, breath-like.
+- **B — Float drift**: multi-axis wandering (x, y, rotation), sine easing,
+  ~16 s full loop. Organic, buoyant.
+- **C — Parallax sway**: pure horizontal pendulum ±14 px + matching tilt,
+  6.5 s yoyo. Architectural, calm.
+
+Toggle disappears on `prefers-reduced-motion`. PNG hidden on mobile.
+Animation pauses on input focus (Android Chrome perf). `tsc --noEmit`: 0 errors.
+

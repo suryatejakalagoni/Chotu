@@ -1,443 +1,633 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import Image from 'next/image'
+import { useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { SCENE_BEATS, TOTAL_DWELL_FRAMES, type SceneBeat } from '@/lib/landing-scene'
-import SceneOverlay from './SceneOverlay'
-import LogoReveal from './LogoReveal'
+import LandingOwl from './LandingOwl'
 
-// ── Constants ─────────────────────────────────────────────────────
-const PRELOAD_AHEAD = 50
-const EVICT_BEHIND = 100
-const MAX_CACHE = 150
-const MIN_READY_FRAMES = 30
-
-// Extra scroll height per dwell virtual-frame (vh units).
-// Tune upward if dwell feels too short in browser; downward if page feels too long.
-const DWELL_VH_MULTIPLIER = 0.5
-
-// Base scroll spacer height (vh) before dwell extension.
-const BASE_VH = 500
-
-// Computed scroll spacer: base + extra from dwell zones
-const SCROLL_HEIGHT_VH = BASE_VH + TOTAL_DWELL_FRAMES * DWELL_VH_MULTIPLIER
-
-// ── Types ─────────────────────────────────────────────────────────
-interface ManifestData {
-  frameCount: number
-  fps: number
-  duration: number
-  width: number
-  height: number
-  framePathPattern: string
+// ── Feature data ──────────────────────────────────────────────────
+interface Feature {
+  readonly img: string
+  readonly baseW: number   // vw unit; width = min(baseW vw, baseW*14 px)
+  readonly riseY: number   // yPercent at focus point (negative = up)
+  readonly flyScale: number
+  readonly isPhone: boolean
+  readonly title: string
+  readonly highlight: string // word inside title that gets the yellow mark
+  readonly desc: string
 }
 
-interface LinearSegment {
-  kind: 'linear'
-  vStart: number
-  vEnd: number
-  fStart: number
-  fEnd: number
-}
+const FEATURES: readonly Feature[] = [
+  {
+    img: '/landing/checklist.png',
+    baseW: 18,
+    riseY: -55,
+    flyScale: 1.8,
+    isPhone: false,
+    title: 'Assignment Tracker',
+    highlight: 'Tracker',
+    desc: 'Every deadline in one place. Always know exactly what is due and when.',
+  },
+  {
+    img: '/landing/clock.png',
+    baseW: 15,
+    riseY: -55,
+    flyScale: 1.8,
+    isPhone: false,
+    title: 'Exam Tracker',
+    highlight: 'Tracker',
+    desc: 'Countdown to every paper. Never get caught off guard again.',
+  },
+  {
+    img: '/landing/wallet.png',
+    baseW: 24,
+    riseY: -60,
+    flyScale: 1.7,
+    isPhone: false,
+    title: 'Expenses Tracked',
+    highlight: 'Tracked',
+    desc: 'See where your money goes. Track every spend without the awkward maths.',
+  },
+  {
+    img: '/landing/phone.png',
+    baseW: 12,
+    riseY: -22,
+    flyScale: 1.7,
+    isPhone: true,
+    title: 'Community Hub',
+    highlight: 'Hub',
+    desc: 'Share and upload notes, files and PDFs — anonymously if you want to.',
+  },
+  {
+    img: '/landing/calendar.png',
+    baseW: 16,
+    riseY: -52,
+    flyScale: 1.8,
+    isPhone: false,
+    title: 'Calendar Sync',
+    highlight: 'Sync',
+    desc: "Connects straight to your phone's Google Calendar. Always in sync.",
+  },
+]
 
-interface DwellSegment {
-  kind: 'dwell'
-  vStart: number
-  vEnd: number
-  frame: number
-}
-
-type Segment = LinearSegment | DwellSegment
-
-// ── Scroll-to-frame mapping ───────────────────────────────────────
-//
-// Builds a piecewise map: virtual scroll position → actual frame number.
-// Between dwell zones the mapping is 1:1 (linear). At each peak with
-// dwellRadius > 0, `dwellRadius * 2` extra virtual frames are inserted
-// so the actual frame stays frozen while the user keeps scrolling.
-
-function buildSegments(
-  beats: readonly SceneBeat[],
-  totalFrames: number,
-): readonly Segment[] {
-  const segments: Segment[] = []
-
-  // Process peaks in frame order, skipping beats with no dwell
-  const active = [...beats]
-    .filter((b) => b.dwellRadius > 0)
-    .sort((a, b) => a.peak - b.peak)
-
-  let vCursor = 1 // virtual frame cursor
-  let fCursor = 1 // actual frame cursor
-
-  for (const beat of active) {
-    const peakActual = beat.peak
-    const dwellLen = beat.dwellRadius * 2
-
-    // Linear run from current position up to this peak
-    if (peakActual > fCursor) {
-      const len = peakActual - fCursor
-      segments.push({
-        kind: 'linear',
-        vStart: vCursor,
-        vEnd: vCursor + len,
-        fStart: fCursor,
-        fEnd: peakActual,
-      })
-      vCursor += len
-      fCursor = peakActual
-    }
-
-    // Dwell zone: virtual frames advance but actual frame stays at peak
-    segments.push({
-      kind: 'dwell',
-      vStart: vCursor,
-      vEnd: vCursor + dwellLen,
-      frame: peakActual,
-    })
-    vCursor += dwellLen
-    // fCursor stays at peakActual — we resume from there after the dwell
-  }
-
-  // Final linear run from last dwell to end of animation
-  if (fCursor < totalFrames) {
-    const len = totalFrames - fCursor
-    segments.push({
-      kind: 'linear',
-      vStart: vCursor,
-      vEnd: vCursor + len,
-      fStart: fCursor,
-      fEnd: totalFrames,
-    })
-  }
-
-  return segments
-}
-
-// Map a virtual frame position (float) to an actual frame number (int).
-function virtualToFrame(
-  vFrame: number,
-  segments: readonly Segment[],
-): number {
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i]
-    // Use < for all but the last segment to avoid double-matching boundaries
-    const isLast = i === segments.length - 1
-    if (vFrame <= seg.vEnd || isLast) {
-      if (seg.kind === 'dwell') return seg.frame
-      const len = seg.vEnd - seg.vStart
-      if (len === 0) return seg.fStart
-      const t = Math.max(0, Math.min(1, (vFrame - seg.vStart) / len))
-      return Math.max(
-        seg.fStart,
-        Math.min(seg.fEnd, Math.round(seg.fStart + t * (seg.fEnd - seg.fStart))),
-      )
-    }
-  }
-  return 1
-}
-
-// ── Pure helpers ──────────────────────────────────────────────────
-function frameSrc(index: number): string {
-  return `/landing/frames/frame-${String(index).padStart(4, '0')}.jpg`
-}
-
-function drawCover(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  w: number,
-  h: number,
-): void {
-  if (img.width === 0 || img.height === 0 || w === 0 || h === 0) return
-  const scale = Math.max(w / img.width, h / img.height)
-  const dw = img.width * scale
-  const dh = img.height * scale
-  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
+// ── Highlight helper (no user input — XSS-safe) ───────────────────
+function buildTitleHTML(title: string, highlight: string): string {
+  const idx = title.indexOf(highlight)
+  if (idx === -1) return title
+  const before = title.slice(0, idx)
+  const after = title.slice(idx + highlight.length)
+  return (
+    before +
+    `<span style="background:linear-gradient(120deg,#ffe27a 0%,#ffd24d 100%);` +
+    `padding:0 .12em;border-radius:.15em;color:#1a1a1a">${highlight}</span>` +
+    after
+  )
 }
 
 // ── Component ─────────────────────────────────────────────────────
 export default function ScrollScene() {
-  // DOM refs
-  const outerRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const scrollRef    = useRef<HTMLDivElement>(null)
+  const titleRef     = useRef<HTMLDivElement>(null)
+  const tClosedRef   = useRef<HTMLImageElement>(null)
+  const tOpenRef     = useRef<HTMLImageElement>(null)
+  const objWrapRef   = useRef<HTMLDivElement>(null)
+  const objImgRef    = useRef<HTMLImageElement>(null)
+  const phoneChatRef = useRef<HTMLDivElement>(null)
+  const featureRef   = useRef<HTMLDivElement>(null)
+  const fTitleRef    = useRef<HTMLHeadingElement>(null)
+  const fDescRef     = useRef<HTMLParagraphElement>(null)
+  const ctaRef       = useRef<HTMLDivElement>(null)
+  // Separate ref for the owl entrance — GSAP animates y here;
+  // the CSS float loop runs on the inner .landing-owl-wrap so no conflict.
+  const owlRiseRef   = useRef<HTMLDivElement>(null)
 
-  // Mutable state (refs — no re-render on change)
-  const cacheRef = useRef<Map<number, HTMLImageElement>>(new Map())
-  const pendingSet = useRef<Set<HTMLImageElement>>(new Set())
-  const loadedCountRef = useRef(0)
-  const mountedRef = useRef(true)
-  const targetFrameRef = useRef(1)   // desired frame (set by ScrollTrigger)
-  const paintedFrameRef = useRef(0)  // last frame drawn (0 = never)
-  const rafIdRef = useRef<number>(0)
-
-  // React state — drives re-renders only when needed
-  const [manifest, setManifest] = useState<ManifestData | null>(null)
-  const [manifestError, setManifestError] = useState(false)
-  const [ready, setReady] = useState(false)
-  const [currentFrame, setCurrentFrame] = useState(1) // feeds overlay components
-
-  // ── Frame preloader ──────────────────────────────────────────────
-  const preload = useCallback(
-    (fromFrame: number, totalFrames: number): void => {
-      if (!mountedRef.current) return
-      const to = Math.min(fromFrame + PRELOAD_AHEAD, totalFrames)
-      for (let i = fromFrame; i <= to; i++) {
-        if (cacheRef.current.has(i)) continue
-        const img = new window.Image() as HTMLImageElement
-        pendingSet.current.add(img)
-        img.onload = () => {
-          pendingSet.current.delete(img)
-          if (!mountedRef.current) return
-          cacheRef.current.set(i, img)
-          loadedCountRef.current++
-          if (loadedCountRef.current >= MIN_READY_FRAMES) setReady(true)
-          const evictBefore = paintedFrameRef.current - EVICT_BEHIND
-          if (evictBefore > 1) {
-            for (const [key] of cacheRef.current) {
-              if (key < evictBefore) cacheRef.current.delete(key)
-            }
-          }
-          if (cacheRef.current.size > MAX_CACHE) {
-            const keys = Array.from(cacheRef.current.keys()).sort((a, b) => a - b)
-            while (cacheRef.current.size > MAX_CACHE) {
-              const k = keys.shift()
-              if (k !== undefined) cacheRef.current.delete(k)
-            }
-          }
-        }
-        img.onerror = () => {
-          pendingSet.current.delete(img)
-        }
-        img.src = frameSrc(i)
-      }
-    },
-    [],
-  )
-
-  // ── 1. Manifest fetch ────────────────────────────────────────────
   useEffect(() => {
-    let cancelled = false
-    fetch('/landing/frames/MANIFEST.json')
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json() as Promise<ManifestData>
-      })
-      .then((data) => {
-        if (!cancelled) setManifest(data)
-      })
-      .catch(() => {
-        if (!cancelled) setManifestError(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    gsap.registerPlugin(ScrollTrigger)
 
-  // ── 2. Initial preload ───────────────────────────────────────────
-  useEffect(() => {
-    if (!manifest) return
-    preload(1, manifest.frameCount)
-  }, [manifest, preload])
+    // Capture refs — bail if any are missing
+    const title      = titleRef.current
+    const tClosed    = tClosedRef.current
+    const tOpen      = tOpenRef.current
+    const objWrap    = objWrapRef.current
+    const feature    = featureRef.current
+    const cta        = ctaRef.current
+    const owlRise    = owlRiseRef.current
+    const scrollSpace = scrollRef.current
 
-  // ── 3. Canvas sizing via ResizeObserver ──────────────────────────
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    if (
+      !title || !tClosed || !tOpen || !objWrap ||
+      !feature || !cta || !owlRise || !scrollSpace
+    ) return
 
-    const syncSize = () => {
-      const w = Math.round(canvas.offsetWidth)
-      const h = Math.round(canvas.offsetHeight)
-      if (canvas.width === w && canvas.height === h) return
-      canvas.width = w
-      canvas.height = h
-      const img = cacheRef.current.get(paintedFrameRef.current)
-      const ctx = canvas.getContext('2d')
-      if (img && ctx) drawCover(ctx, img, w, h)
+    // Swap image, text and overlay for each feature.
+    // Called via GSAP timeline callback — all content is static, no XSS risk.
+    function setObject(f: Feature): void {
+      const img   = objImgRef.current
+      const ftEl  = fTitleRef.current
+      const fdEl  = fDescRef.current
+      const chat  = phoneChatRef.current
+      const wrap  = objWrapRef.current
+      if (!img || !ftEl || !fdEl || !chat || !wrap) return
+
+      ftEl.innerHTML   = buildTitleHTML(f.title, f.highlight)
+      fdEl.textContent = f.desc
+      img.src          = f.img
+      img.alt          = f.title
+      wrap.style.width = `min(${f.baseW}vw,${f.baseW * 14}px)`
+      chat.style.display = f.isPhone ? 'flex' : 'none'
     }
 
-    syncSize()
-    const ro = new ResizeObserver(syncSize)
-    ro.observe(canvas)
-    return () => ro.disconnect()
-  }, [])
-
-  // ── 4. GSAP ScrollTrigger with non-linear frame mapping ──────────
-  useEffect(() => {
-    if (!manifest || !outerRef.current) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      targetFrameRef.current = 1
+    // ── Reduced-motion path: static, no scrub ────────────────────
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) {
+      const f = FEATURES[0]
+      setObject(f)
+      gsap.set(title,   { opacity: 1 })
+      gsap.set(objWrap, { opacity: 1, scale: 1, xPercent: -50, yPercent: f.riseY })
+      gsap.set(feature, { opacity: 1 })
+      gsap.set(tClosed,  { opacity: 1 })
+      gsap.set(tOpen,    { opacity: 0 })
+      gsap.set(cta,      { opacity: 0 })
+      gsap.set(owlRise,  { y: 0 })        // already in final position — no rise
       return
     }
 
-    gsap.registerPlugin(ScrollTrigger)
+    // ── Animated path ─────────────────────────────────────────────
+    gsap.set(title,    { opacity: 1 })
+    gsap.set(objWrap,  { opacity: 0 })
+    gsap.set(feature,  { opacity: 0 })
+    gsap.set(cta,      { opacity: 0 })
+    gsap.set(tClosed,  { opacity: 1 })
+    gsap.set(tOpen,    { opacity: 0 })
+    // Owl starts 60 px below its resting position — rises as CTA fades in.
+    // opacity is intentionally NOT set here: the parent ctaRef fade handles it.
+    gsap.set(owlRise,  { y: 60 })
 
-    const { frameCount } = manifest
-    const totalVirtual = frameCount + TOTAL_DWELL_FRAMES
-    const segments = buildSegments(SCENE_BEATS, frameCount)
+    const ctx = gsap.context(() => {
+      // Idle title sway — runs independently, never scrubbed
+      gsap.fromTo(
+        title,
+        { rotationY: -12 },
+        { rotationY: 12, duration: 3, repeat: -1, yoyo: true, ease: 'sine.inOut' },
+      )
+      gsap.to(title, {
+        y: '-=14', duration: 1.6, repeat: -1, yoyo: true, ease: 'sine.inOut',
+      })
 
-    const st = ScrollTrigger.create({
-      trigger: outerRef.current,
-      start: 'top top',
-      end: 'bottom bottom',
-      // scrub: 0.5 synchronises onUpdate to the rAF cycle, giving a slight
-      // easing buffer that smooths out jitter without adding perceivable lag.
-      scrub: 0.5,
-      onUpdate: (self) => {
-        const vFrame = 1 + self.progress * (totalVirtual - 1)
-        targetFrameRef.current = virtualToFrame(vFrame, segments)
-      },
+      // Master scrubbed timeline
+      const master = gsap.timeline({
+        scrollTrigger: {
+          trigger: scrollSpace,
+          start: 'top top',
+          end: 'bottom bottom',
+          scrub: 0.6,
+        },
+      })
+
+      // Title fades out at the very start of the scroll
+      master.to(title, { opacity: 0, scale: 0.8, duration: 0.5 }, 0)
+
+      // Build one sub-timeline per feature
+      for (const f of FEATURES) {
+        const seg = gsap.timeline()
+
+        // 0. Swap content at start of this segment
+        seg.add(() => setObject(f))
+
+        // 1. Drawer opens (cross-fade table-closed → table-open)
+        seg.to(tClosed, { opacity: 0, duration: 0.4, ease: 'power1.inOut' })
+        seg.to(tOpen,   { opacity: 1, duration: 0.4, ease: 'power1.inOut' }, '<')
+
+        // 2. Object emerges from drawer cavity
+        seg.fromTo(
+          objWrap,
+          { opacity: 0, scale: 0.4, yPercent: 25, xPercent: -50, z: 0 },
+          { opacity: 1, scale: 0.7, yPercent: f.riseY * 0.55, duration: 1.0, ease: 'power2.out' },
+        )
+
+        // 3. Drawer closes while object keeps rising (overlap)
+        seg.to(tOpen,   { opacity: 0, duration: 0.4, ease: 'power1.inOut' }, '-=0.6')
+        seg.to(tClosed, { opacity: 1, duration: 0.4, ease: 'power1.inOut' }, '<')
+
+        // 4. Rise to focus point; feature text fades in
+        seg.to(objWrap, { yPercent: f.riseY, scale: 1, duration: 0.8, ease: 'power2.out' }, '-=0.2')
+        seg.fromTo(feature, { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.5 }, '-=0.45')
+
+        // 5. Hold
+        seg.to({}, { duration: 0.5 })
+
+        // 6. Text out, then motion-B: grow toward viewer and fade
+        seg.to(feature, { opacity: 0, x: -20, duration: 0.4 })
+        seg.to(objWrap, {
+          z: 260,
+          scale: f.flyScale,
+          yPercent: f.riseY + 35,
+          opacity: 0,
+          duration: 1.0,
+          ease: 'power2.in',
+        })
+
+        master.add(seg)
+      }
+
+      // 7. Ending CTA fades in over the empty table; owl rises up from drawer
+      //    '<0.15' = owl starts 0.15 timeline-units after the CTA fade begins
+      //    so the text leads slightly and the owl follows — feels like it's
+      //    emerging from the drawer just as the scene settles.
+      master.to(cta,     { opacity: 1, duration: 0.6 })
+      master.to(owlRise, { y: 0, duration: 0.5, ease: 'back.out(1.4)' }, '<0.15')
     })
 
-    return () => {
-      st.kill()
-    }
-  }, [manifest])
-
-  // ── 5. RAF paint loop ────────────────────────────────────────────
-  useEffect(() => {
-    if (!ready || !manifest) return
-    const { frameCount } = manifest
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    function paint() {
-      rafIdRef.current = requestAnimationFrame(paint)
-      const target = targetFrameRef.current
-      if (target === paintedFrameRef.current) return
-      paintedFrameRef.current = target
-
-      const img = cacheRef.current.get(target)
-      const ctx = canvas ? canvas.getContext('2d') : null
-      if (img && ctx && canvas) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        drawCover(ctx, img, canvas.width, canvas.height)
-      }
-
-      setCurrentFrame(target)
-      preload(target, frameCount)
-    }
-
-    rafIdRef.current = requestAnimationFrame(paint)
-    return () => cancelAnimationFrame(rafIdRef.current)
-  }, [ready, manifest, preload])
-
-  // ── 6. Cleanup on unmount ────────────────────────────────────────
-  useEffect(() => {
-    const pending = pendingSet.current
-    const cache = cacheRef.current
-    return () => {
-      mountedRef.current = false
-      cancelAnimationFrame(rafIdRef.current)
-      for (const img of pending) {
-        img.onload = null
-        img.onerror = null
-        img.src = ''
-      }
-      pending.clear()
-      cache.clear()
-    }
+    return () => ctx.revert()
   }, [])
 
-  // ── Error fallback ───────────────────────────────────────────────
-  if (manifestError) {
-    return (
-      <div
-        style={{
-          height: '100svh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#0A1A10',
-          color: 'rgba(245,240,232,0.6)',
-          fontFamily: 'var(--font-geist-mono, monospace)',
-          fontSize: '0.875rem',
-        }}
-      >
-        Scene unavailable — please refresh.
-      </div>
-    )
-  }
-
+  // ── JSX ───────────────────────────────────────────────────────────
   return (
-    // Outer: scroll spacer — height accounts for dwell zones
-    <div
-      ref={outerRef}
-      style={{ height: `${SCROLL_HEIGHT_VH}vh`, position: 'relative' }}
-    >
-      {/* Inner: sticky viewport */}
+    <>
+      {/*
+       * Fixed stage — covers the full viewport, light gradient.
+       * zIndex:1 keeps it above the scroll spacer but below the header (zIndex:50).
+       */}
       <div
         style={{
-          position: 'sticky',
-          top: 0,
-          height: '100svh',
+          position: 'fixed',
+          inset: 0,
           overflow: 'hidden',
-          background: '#0A1A10',
+          perspective: '1100px',
+          perspectiveOrigin: '50% 42%',
+          background: 'linear-gradient(180deg,#fff 0%,#fff 45%,#eceef1 100%)',
+          zIndex: 1, // above the static scroll spacer; header is z-index:50
         }}
       >
-        {/* LCP image — shown while canvas preloads */}
-        {!ready && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              transform: 'scale(1.16)',
-              transformOrigin: 'center center',
-            }}
-          >
-            <Image
-              src={frameSrc(1)}
-              alt=""
-              fill
-              priority
-              sizes="100vw"
-              style={{ objectFit: 'cover' }}
-            />
-          </div>
-        )}
+        {/* ── CHOTU hero title ────────────────────────────────────── */}
+        <div
+          ref={titleRef}
+          aria-hidden="true"
+          style={{
+            position:      'absolute',
+            top:           '30%',
+            left:          '50%',
+            transform:     'translate(-50%,-50%)',
+            fontFamily:    "'Clash Display','Space Grotesk',sans-serif",
+            fontWeight:    700,
+            fontSize:      'clamp(64px,16vw,200px)',
+            letterSpacing: '.02em',
+            color:         '#16181d',
+            willChange:    'transform,opacity',
+            perspective:   '600px',
+            zIndex:        6,
+            pointerEvents: 'none',
+            userSelect:    'none',
+            whiteSpace:    'nowrap',
+          }}
+        >
+          CHOTU
+        </div>
 
-        {/* Canvas — scaled 1.16× to crop ~7% black bars */}
-        <canvas
-          ref={canvasRef}
-          aria-hidden
+        {/* ── Wooden table (two cross-faded images) ───────────────── */}
+        <div
           style={{
             position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            transform: 'scale(1.16)',
-            transformOrigin: 'center center',
-            opacity: ready ? 1 : 0,
-            transition: 'opacity 0.4s ease',
+            bottom: '-2%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'min(64vw,620px)',
+            zIndex: 5,
           }}
-        />
-
-        {/* Loading indicator */}
-        {!ready && (
-          <p
-            role="status"
+        >
+          {/* table-closed: visible at rest and after each drawer close */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={tClosedRef}
+            src="/landing/table-closed.png"
+            alt="wooden table"
             style={{
               position: 'absolute',
-              bottom: '2rem',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              margin: 0,
-              color: 'rgba(245,240,232,0.45)',
-              fontSize: '0.75rem',
-              fontFamily: 'var(--font-geist-mono, monospace)',
-              letterSpacing: '0.08em',
-              pointerEvents: 'none',
-              whiteSpace: 'nowrap',
+              left: 0,
+              bottom: 0,
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+            }}
+          />
+          {/* table-open: fades in when drawer opens */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={tOpenRef}
+            src="/landing/table-open.png"
+            alt=""
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 0,
+              bottom: 0,
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+              opacity: 0,
+            }}
+          />
+          {/*
+           * Invisible spacer — same src as table-closed but visibility:hidden.
+           * Gives the zero-height container intrinsic height so the
+           * absolute-positioned table images push it open correctly.
+           */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/landing/table-closed.png"
+            alt=""
+            aria-hidden="true"
+            style={{ width: '100%', height: 'auto', display: 'block', visibility: 'hidden' }}
+          />
+        </div>
+
+        {/* ── Rising object wrap ───────────────────────────────────── */}
+        {/*
+         * z-index:4 = BEHIND the table front (z-index:5) so the object
+         * appears to emerge from inside the drawer.
+         * GSAP animates yPercent (vertical rise) and scale via transforms.
+         */}
+        <div
+          ref={objWrapRef}
+          style={{
+            position: 'absolute',
+            left: '40%',
+            bottom: '30%',
+            opacity: 0,
+            willChange: 'transform,opacity',
+            zIndex: 4,
+            transformStyle: 'preserve-3d',
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={objImgRef}
+            src="/landing/checklist.png"
+            alt=""
+            style={{
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+              filter: 'drop-shadow(0 18px 30px rgba(0,0,0,.18))',
+            }}
+          />
+
+          {/* Phone chat overlay — only shown when isPhone === true */}
+          <div
+            ref={phoneChatRef}
+            style={{
+              position: 'absolute',
+              top: '5%',
+              left: '8%',
+              width: '84%',
+              height: '85%',
+              borderRadius: '9%/4.5%',
+              overflow: 'hidden',
+              background: '#0b141a',
+              display: 'none',      // toggled by setObject
+              flexDirection: 'column',
+              fontFamily: "var(--font-space-grotesk),'Space Grotesk',sans-serif",
             }}
           >
-            Loading scene…
-          </p>
-        )}
+            {/* WhatsApp-style header bar */}
+            <div
+              style={{
+                background: '#1f2c34',
+                color: '#fff',
+                padding: '5% 6%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5%',
+                fontSize: '.75em',
+              }}
+            >
+              <div
+                style={{
+                  width: '1.6em',
+                  height: '1.6em',
+                  borderRadius: '50%',
+                  background: '#3a4a54',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '.8em',
+                  flexShrink: 0,
+                }}
+              >
+                B
+              </div>
+              <span style={{ fontWeight: 600 }}>Batch Group</span>
+            </div>
 
-        {ready && <SceneOverlay currentFrame={currentFrame} />}
-        {ready && <LogoReveal currentFrame={currentFrame} />}
+            {/* Chat body */}
+            <div
+              style={{
+                flex: 1,
+                padding: '6%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5%',
+                background: '#0b141a',
+                overflowY: 'hidden',
+              }}
+            >
+              {/* Incoming bubble */}
+              <div
+                style={{
+                  alignSelf: 'flex-start',
+                  background: '#1f2c34',
+                  maxWidth: '80%',
+                  padding: '4% 5%',
+                  borderRadius: '.8em',
+                  fontSize: '.7em',
+                  lineHeight: 1.3,
+                  color: '#e9edef',
+                }}
+              >
+                Bro can you share the DBMS notes PDF?
+              </div>
+
+              {/* Outgoing bubble */}
+              <div
+                style={{
+                  alignSelf: 'flex-end',
+                  background: '#005c4b',
+                  maxWidth: '80%',
+                  padding: '4% 5%',
+                  borderRadius: '.8em',
+                  fontSize: '.7em',
+                  lineHeight: 1.3,
+                  color: '#e9edef',
+                }}
+              >
+                Yeah one sec
+              </div>
+
+              {/* PDF attachment bubble */}
+              <div
+                style={{
+                  alignSelf: 'flex-end',
+                  background: '#025144',
+                  borderRadius: '.8em',
+                  padding: '4%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5%',
+                  maxWidth: '82%',
+                }}
+              >
+                <div
+                  style={{
+                    background: '#e9edef',
+                    color: '#c0392b',
+                    fontSize: '.6em',
+                    fontWeight: 700,
+                    padding: '3% 5%',
+                    borderRadius: '.3em',
+                    flexShrink: 0,
+                  }}
+                >
+                  PDF
+                </div>
+                <span style={{ color: '#e9edef', fontSize: '.62em' }}>DBMS_Unit3.pdf</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Feature text block ───────────────────────────────────── */}
+        {/* Responsive positioning handled via .landing-feature CSS class */}
+        <div ref={featureRef} className="landing-feature">
+          <h2
+            ref={fTitleRef}
+            style={{
+              fontFamily: "var(--font-fraunces),'Fraunces',serif",
+              fontSize: 'clamp(26px,4vw,52px)',
+              fontWeight: 600,
+              lineHeight: 1.05,
+              margin: '0 0 .5em',
+              color: '#16181d',
+            }}
+          />
+          <p
+            ref={fDescRef}
+            style={{
+              fontFamily: "var(--font-space-grotesk),'Space Grotesk',sans-serif",
+              fontSize: 'clamp(15px,1.5vw,19px)',
+              lineHeight: 1.5,
+              color: '#3a3d44',
+              fontWeight: 400,
+              margin: 0,
+            }}
+          />
+        </div>
+
+        {/* ── Ending CTA — fades in over the empty table ──────────── */}
+        <div
+          ref={ctaRef}
+          style={{
+            position: 'absolute',
+            top: '46%',
+            left: '50%',
+            transform: 'translate(-50%,-50%)',
+            width: 'min(86vw,640px)',
+            textAlign: 'center',
+            opacity: 0,
+            zIndex: 7,
+          }}
+        >
+          {/*
+           * Flex row: [CHOTU text] [LandingOwl]
+           * Owl hovers here beside the CTA heading, giving the "flying in place"
+           * look the user asked for. The whole ctaRef div fades in via GSAP
+           * (opacity 0 → 1) so the owl appearance is handled for free.
+           */}
+          <div
+            style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
+              gap:            '0.18em',
+              marginBottom:   '.3em',
+            }}
+          >
+            <h1
+              style={{
+                fontFamily:    "'Clash Display','Space Grotesk',sans-serif",
+                fontSize:      'clamp(40px,8vw,92px)',
+                fontWeight:    700,
+                margin:        0,
+                letterSpacing: '.01em',
+                color:         '#16181d',
+              }}
+            >
+              CHOTU
+            </h1>
+            {/*
+             * owlRiseRef wraps LandingOwl.
+             * GSAP animates y on THIS div (the entrance rise).
+             * The CSS float loop (lc-owl-hover) runs on the inner
+             * .landing-owl-wrap inside LandingOwl — different elements,
+             * so the two transform animations never collide.
+             */}
+            <div ref={owlRiseRef} style={{ flexShrink: 0 }}>
+              <LandingOwl />
+            </div>
+          </div>
+          <p
+            style={{
+              fontFamily: "var(--font-fraunces),'Fraunces',serif",
+              fontSize: 'clamp(17px,2vw,22px)',
+              color: '#3a3d44',
+              marginBottom: '1.4em',
+            }}
+          >
+            Your study life, organised. One quiet place for everything.
+          </p>
+          <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link
+              href="/signup"
+              style={{
+                background: '#1a1a1a',
+                color: '#fff',
+                fontFamily: "var(--font-space-grotesk),'Space Grotesk',sans-serif",
+                fontWeight: 600,
+                fontSize: 'clamp(15px,1.5vw,18px)',
+                padding: '.75em 2em',
+                borderRadius: '100px',
+                textDecoration: 'none',
+                letterSpacing: '.01em',
+              }}
+            >
+              Get started
+            </Link>
+            <Link
+              href="/login"
+              style={{
+                border: '1.5px solid rgba(0,0,0,.2)',
+                color: '#1a1a1a',
+                fontFamily: "var(--font-space-grotesk),'Space Grotesk',sans-serif",
+                fontWeight: 500,
+                fontSize: 'clamp(15px,1.5vw,18px)',
+                padding: '.75em 2em',
+                borderRadius: '100px',
+                textDecoration: 'none',
+              }}
+            >
+              Sign in
+            </Link>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* ── 900vh scroll spacer — drives the ScrollTrigger ─────────── */}
+      {/*
+       * pointerEvents:none ensures the spacer never intercepts clicks
+       * regardless of what position GSAP's ScrollTrigger adds at runtime.
+       * The fixed stage (zIndex:1) holds all interactive content.
+       */}
+      <div ref={scrollRef} style={{ height: '900vh', pointerEvents: 'none' }} />
+    </>
   )
 }
