@@ -407,3 +407,25 @@
     transition: none !important;
   }
 }
+
+/* ── Password eye-toggle: diagonal slice-in ─────────────────────────
+ * The new icon clips in along a diagonal blade (top-left → bottom-right).
+ * Triggered by changing the element's `key` prop, which remounts it and
+ * fires the animation on every toggle — open→closed and closed→open.
+ * ──────────────────────────────────────────────────────────────────── */
+
+@keyframes eye-slice-in {
+  from { clip-path: polygon(0 0, 0 0, 100% 100%, 100% 100%); }
+  to   { clip-path: polygon(0 0, 100% 0,  100% 100%, 0 100%); }
+}
+
+.eye-slice-in {
+  animation: eye-slice-in 0.15s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eye-slice-in {
+    animation:  none !important;
+    clip-path:  none !important;
+  }
+}
