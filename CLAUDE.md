@@ -45,6 +45,23 @@ A PWA for ~64 college classmates in Telangana. Features: assignment tracker, exa
 
 ## Changelog
 
+### 2026-05-24 — GSAP scroll lag fix: title centering handed to GSAP (commit dc78b2e)
+
+**The rule**: Never put `transform` in a CSS class on an element that GSAP animates.
+When GSAP can't find an inline `style.transform`, it falls back to `getComputedStyle()`
+on every frame it composes transforms — that's a forced layout reflow per scroll event = jank.
+Also, `getComputedStyle()` returns a pixel matrix (percentages resolved), losing the viewport-
+independent nature of `translate(-50%,-50%)`, causing off-centre positioning.
+
+Fix: Removed `transform: translate(-50%,-50%)` from `.lc-title` CSS class.
+Added `xPercent: -50, yPercent: -50` to the `gsap.set(title, {...})` call (both animated
+and reduced-motion paths). GSAP now owns the centering as percentages, reads only `_gsap`
+cache per frame, zero `getComputedStyle()` calls during animation.
+
+`.lc-cta` keeps its CSS transform (GSAP never animates transforms on it — only opacity).
+
+---
+
 ### 2026-05-24 — Hydration fix: all static inline styles moved to CSS classes (commit 8c3b809)
 
 Root cause: React 19's inline-style serialiser emits kebab-case property names and
