@@ -493,12 +493,21 @@
   z-index: 1;
 }
 
-/* Hero "CHOTU" title — GSAP animates rotationY, y, opacity, scale */
+/* Hero "CHOTU" title — GSAP animates rotationY, y, opacity, scale.
+ *
+ * NO transform here. GSAP owns the centering entirely via
+ * xPercent: -50 / yPercent: -50 set in gsap.set() before the first tween.
+ *
+ * Why: if transform: translate(-50%,-50%) lives in a CSS class, GSAP reads
+ * it from getComputedStyle() as a pixel matrix on every frame it needs to
+ * compose transforms, forcing a layout read per animation frame → jank.
+ * With GSAP owning xPercent/yPercent, it reads only its own _gsap cache —
+ * no getComputedStyle() during animation, no forced reflow, no lag.
+ */
 .lc-title {
   position: absolute;
   top: 30%;
   left: 50%;
-  transform: translate(-50%,-50%);
   font-family: 'Clash Display','Space Grotesk',sans-serif;
   font-weight: 700;
   font-size: clamp(64px,16vw,200px);

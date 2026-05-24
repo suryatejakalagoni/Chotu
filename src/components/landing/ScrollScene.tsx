@@ -144,7 +144,11 @@ export default function ScrollScene() {
     if (reduced) {
       const f = FEATURES[0]
       setObject(f)
-      gsap.set(title,   { opacity: 1 })
+      // xPercent/yPercent: GSAP owns the centering — keeps it percentage-based
+      // so it's correct on every viewport. Must NOT come from CSS class transform
+      // because GSAP would read the computed pixel matrix instead and bake a
+      // fixed-pixel translation that could mis-centre on font/layout changes.
+      gsap.set(title,   { xPercent: -50, yPercent: -50, opacity: 1 })
       gsap.set(objWrap, { opacity: 1, scale: 1, xPercent: -50, yPercent: f.riseY })
       gsap.set(feature, { opacity: 1 })
       gsap.set(tClosed,  { opacity: 1 })
@@ -155,7 +159,16 @@ export default function ScrollScene() {
     }
 
     // ── Animated path ─────────────────────────────────────────────
-    gsap.set(title,    { opacity: 1 })
+    //
+    // xPercent/yPercent on title: GSAP owns the centering as percentages.
+    // This is the equivalent of the old inline `transform: translate(-50%,-50%)`
+    // that GSAP could read as a string and keep as xPercent/yPercent internally.
+    // Now that the CSS migration moved the transform to a CSS class, GSAP would
+    // instead read the computed pixel matrix → stores fixed pixels → forced
+    // getComputedStyle() reads per animation frame → scroll jank.
+    // Explicit xPercent/yPercent here: GSAP reads its own _gsap cache only,
+    // no per-frame layout reads, no jank.
+    gsap.set(title,    { xPercent: -50, yPercent: -50, opacity: 1 })
     gsap.set(objWrap,  { opacity: 0 })
     gsap.set(feature,  { opacity: 0 })
     gsap.set(cta,      { opacity: 0 })
