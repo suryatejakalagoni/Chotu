@@ -45,6 +45,35 @@ A PWA for ~64 college classmates in Telangana. Features: assignment tracker, exa
 
 ## Changelog
 
+### 2026-05-24 — Hydration fix: all static inline styles moved to CSS classes (commit 8c3b809)
+
+Root cause: React 19's inline-style serialiser emits kebab-case property names and
+normalised value strings (`rgb(255,255,255)`, spaces in `translate(-50%, -50%)`)
+during SSR, while the client hydrator expects camelCase / `#hex` / compact values.
+This caused a hydration mismatch and React scrapped the entire server tree on every
+page load, breaking GSAP refs.
+
+Fix: moved every large static inline-style object on affected elements to plain CSS
+classes in `globals.css` (the project's existing pattern for landing-specific CSS).
+
+**New CSS classes added to `src/app/globals.css`:**
+`.lc-site-header`, `.lc-site-brand`, `.lc-site-signup` — site header
+`.lc-stage`, `.lc-title`, `.lc-table-wrap`, `.lc-table-img`, `.lc-obj-wrap` — scroll scene
+`.lc-cta`, `.lc-cta-row`, `.lc-cta-heading`, `.lc-cta-tagline`, `.lc-cta-actions` — CTA section
+`.lc-btn-primary`, `.lc-btn-outline` — CTA buttons
+
+**Rule going forward:** never add large inline style objects to elements that are
+SSR'd (`'use client'` components ARE SSR'd). Use CSS classes for all static styles.
+Only GSAP-managed values (opacity, transform during animation) may stay inline — and
+only when GSAP needs to read them as its starting state.
+
+#### Files changed
+- `src/app/globals.css` — 15 new CSS classes added
+- `src/components/site-header.tsx` — header/brand/signup now use CSS classes
+- `src/components/landing/ScrollScene.tsx` — stage/title/table/objWrap/CTA now use CSS classes
+
+---
+
 ### 2026-05-22 — Landing page finalized; nav wired; public pages added
 
 **Landing page is now considered finalized. Do not touch the drawer-cinema GSAP
