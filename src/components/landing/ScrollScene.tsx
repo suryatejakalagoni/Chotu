@@ -299,6 +299,25 @@ export default function ScrollScene() {
         }}
       >
         {/* ── CHOTU hero title ────────────────────────────────────── */}
+        {/*
+         * The <span> around "CHOTU" is intentional and must stay.
+         *
+         * React 19's concurrent hydrator wraps bare text children in a <span>
+         * when the parent has white-space:nowrap, to stabilise text layout
+         * across concurrent render passes.  The Next.js static pre-renderer
+         * (build-time SSR) does NOT apply this normalisation, so without an
+         * explicit <span> the server emits ">CHOTU<" while React on the client
+         * expects "><span …>CHOTU</span><".  The mismatch causes React to scrap
+         * the entire server tree and re-render from scratch — which is why GSAP
+         * refs pointed at stale elements and animations didn't work until reload.
+         *
+         * Keeping the <span> in the JSX makes both render paths produce the same
+         * DOM structure, eliminating the hydration error.
+         *
+         * whiteSpace:nowrap lives only on the <span> so the element the style
+         * applies to is the same node on server and client.  The outer div keeps
+         * only layout/animation styles — nothing that triggers text normalisation.
+         */}
         <div
           ref={titleRef}
           aria-hidden="true"
@@ -317,10 +336,9 @@ export default function ScrollScene() {
             zIndex:        6,
             pointerEvents: 'none',
             userSelect:    'none',
-            whiteSpace:    'nowrap',
           }}
         >
-          CHOTU
+          <span style={{ whiteSpace: 'nowrap' }}>CHOTU</span>
         </div>
 
         {/* ── Wooden table (two cross-faded images) ───────────────── */}
