@@ -286,18 +286,7 @@ export default function ScrollScene() {
        * Fixed stage — covers the full viewport, light gradient.
        * zIndex:1 keeps it above the scroll spacer but below the header (zIndex:50).
        */}
-      <div
-        ref={stageRef}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          overflow: 'hidden',
-          perspective: '1100px',
-          perspectiveOrigin: '50% 42%',
-          background: 'linear-gradient(180deg,#fff 0%,#fff 45%,#eceef1 100%)',
-          zIndex: 1, // above the static scroll spacer; header is z-index:50
-        }}
-      >
+      <div ref={stageRef} className="lc-stage">
         {/* ── CHOTU hero title ────────────────────────────────────── */}
         {/*
          * The <span> around "CHOTU" is intentional and must stay.
@@ -318,71 +307,29 @@ export default function ScrollScene() {
          * applies to is the same node on server and client.  The outer div keeps
          * only layout/animation styles — nothing that triggers text normalisation.
          */}
-        <div
-          ref={titleRef}
-          aria-hidden="true"
-          style={{
-            position:      'absolute',
-            top:           '30%',
-            left:          '50%',
-            transform:     'translate(-50%,-50%)',
-            fontFamily:    "'Clash Display','Space Grotesk',sans-serif",
-            fontWeight:    700,
-            fontSize:      'clamp(64px,16vw,200px)',
-            letterSpacing: '.02em',
-            color:         '#16181d',
-            willChange:    'transform,opacity',
-            perspective:   '600px',
-            zIndex:        6,
-            pointerEvents: 'none',
-            userSelect:    'none',
-          }}
-        >
+        <div ref={titleRef} aria-hidden="true" className="lc-title">
           <span style={{ whiteSpace: 'nowrap' }}>CHOTU</span>
         </div>
 
         {/* ── Wooden table (two cross-faded images) ───────────────── */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '-2%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 'min(64vw,620px)',
-            zIndex: 5,
-          }}
-        >
+        <div className="lc-table-wrap">
           {/* table-closed: visible at rest and after each drawer close */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={tClosedRef}
             src="/landing/table-closed.png"
             alt="wooden table"
-            style={{
-              position: 'absolute',
-              left: 0,
-              bottom: 0,
-              width: '100%',
-              height: 'auto',
-              display: 'block',
-            }}
+            className="lc-table-img"
           />
-          {/* table-open: fades in when drawer opens */}
+          {/* table-open: fades in when drawer opens — starts hidden via inline opacity so GSAP can cross-fade */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={tOpenRef}
             src="/landing/table-open.png"
             alt=""
             aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: 0,
-              bottom: 0,
-              width: '100%',
-              height: 'auto',
-              display: 'block',
-              opacity: 0,
-            }}
+            className="lc-table-img"
+            style={{ opacity: 0 }}
           />
           {/*
            * Invisible spacer — same src as table-closed but visibility:hidden.
@@ -404,18 +351,7 @@ export default function ScrollScene() {
          * appears to emerge from inside the drawer.
          * GSAP animates yPercent (vertical rise) and scale via transforms.
          */}
-        <div
-          ref={objWrapRef}
-          style={{
-            position: 'absolute',
-            left: '40%',
-            bottom: '30%',
-            opacity: 0,
-            willChange: 'transform,opacity',
-            zIndex: 4,
-            transformStyle: 'preserve-3d',
-          }}
-        >
+        <div ref={objWrapRef} className="lc-obj-wrap">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={objImgRef}
@@ -580,46 +516,15 @@ export default function ScrollScene() {
         </div>
 
         {/* ── Ending CTA — fades in over the empty table ──────────── */}
-        <div
-          ref={ctaRef}
-          style={{
-            position: 'absolute',
-            top: '46%',
-            left: '50%',
-            transform: 'translate(-50%,-50%)',
-            width: 'min(86vw,640px)',
-            textAlign: 'center',
-            opacity: 0,
-            zIndex: 7,
-          }}
-        >
+        <div ref={ctaRef} className="lc-cta">
           {/*
            * Flex row: [CHOTU text] [LandingOwl]
            * Owl hovers here beside the CTA heading, giving the "flying in place"
            * look the user asked for. The whole ctaRef div fades in via GSAP
            * (opacity 0 → 1) so the owl appearance is handled for free.
            */}
-          <div
-            style={{
-              display:        'flex',
-              alignItems:     'center',
-              justifyContent: 'center',
-              gap:            '0.18em',
-              marginBottom:   '.3em',
-            }}
-          >
-            <h1
-              style={{
-                fontFamily:    "'Clash Display','Space Grotesk',sans-serif",
-                fontSize:      'clamp(40px,8vw,92px)',
-                fontWeight:    700,
-                margin:        0,
-                letterSpacing: '.01em',
-                color:         '#16181d',
-              }}
-            >
-              CHOTU
-            </h1>
+          <div className="lc-cta-row">
+            <h1 className="lc-cta-heading">CHOTU</h1>
             {/*
              * owlRiseRef wraps LandingOwl.
              * GSAP animates y on THIS div (the entrance rise).
@@ -631,48 +536,12 @@ export default function ScrollScene() {
               <LandingOwl />
             </div>
           </div>
-          <p
-            style={{
-              fontFamily: "var(--font-fraunces),'Fraunces',serif",
-              fontSize: 'clamp(17px,2vw,22px)',
-              color: '#3a3d44',
-              marginBottom: '1.4em',
-            }}
-          >
+          <p className="lc-cta-tagline">
             Your study life, organised. One quiet place for everything.
           </p>
-          <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link
-              href="/signup"
-              style={{
-                background: '#1a1a1a',
-                color: '#fff',
-                fontFamily: "var(--font-space-grotesk),'Space Grotesk',sans-serif",
-                fontWeight: 600,
-                fontSize: 'clamp(15px,1.5vw,18px)',
-                padding: '.75em 2em',
-                borderRadius: '100px',
-                textDecoration: 'none',
-                letterSpacing: '.01em',
-              }}
-            >
-              Get started
-            </Link>
-            <Link
-              href="/login"
-              style={{
-                border: '1.5px solid rgba(0,0,0,.2)',
-                color: '#1a1a1a',
-                fontFamily: "var(--font-space-grotesk),'Space Grotesk',sans-serif",
-                fontWeight: 500,
-                fontSize: 'clamp(15px,1.5vw,18px)',
-                padding: '.75em 2em',
-                borderRadius: '100px',
-                textDecoration: 'none',
-              }}
-            >
-              Sign in
-            </Link>
+          <div className="lc-cta-actions">
+            <Link href="/signup" className="lc-btn-primary">Get started</Link>
+            <Link href="/login" className="lc-btn-outline">Sign in</Link>
           </div>
         </div>
       </div>

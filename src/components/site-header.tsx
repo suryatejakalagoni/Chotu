@@ -26,36 +26,9 @@ export default function SiteHeader() {
   }
 
   return (
-    <header
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '1rem 1.75rem',
-        background: 'rgba(255,255,255,0.18)',
-        backdropFilter: 'blur(10px) saturate(120%)',
-        WebkitBackdropFilter: 'blur(10px) saturate(120%)',
-        borderBottom: '1px solid rgba(0,0,0,0.06)',
-      }}
-    >
+    <header className="lc-site-header">
       {/* Brand logotype */}
-      <Link
-        href="/"
-        style={{
-          fontFamily: "'Clash Display','Space Grotesk',sans-serif",
-          fontWeight: 700,
-          fontSize: 'clamp(20px,2.4vw,26px)',
-          letterSpacing: '.04em',
-          color: '#16181d',
-          textDecoration: 'none',
-          lineHeight: 1,
-        }}
-      >
+      <Link href="/" className="lc-site-brand">
         CHOTU
       </Link>
 
@@ -95,19 +68,7 @@ export default function SiteHeader() {
         </Link>
 
         {/* Sign up pill — always visible */}
-        <Link
-          href="/signup"
-          style={{
-            fontSize: '0.875rem',
-            fontWeight: 700,
-            color: '#fff',
-            background: '#1a1a1a',
-            padding: '0.45rem 1.25rem',
-            borderRadius: '100px',
-            textDecoration: 'none',
-            letterSpacing: '.02em',
-          }}
-        >
+        <Link href="/signup" className="lc-site-signup">
           {/*
            * The <span> here is intentional — same fix as the CHOTU title div.
            * React 19's concurrent hydrator wraps bare text in a <span> when

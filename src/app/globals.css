@@ -429,3 +429,187 @@
     clip-path:  none !important;
   }
 }
+
+/* ── Site header — shared across landing + public pages ─────────────
+ *
+ * Moving these out of inline styles eliminates the React-19 hydration
+ * mismatch caused by inline-style serialization noise (server emits
+ * kebab-case / rgb() / space-normalised translate(); client expects
+ * camelCase / #hex / compact translate()).  CSS class values are parsed
+ * once by the browser — no React involvement, no mismatch.
+ * ──────────────────────────────────────────────────────────────────── */
+
+.lc-site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.75rem;
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+
+.lc-site-brand {
+  font-family: 'Clash Display','Space Grotesk',sans-serif;
+  font-weight: 700;
+  font-size: clamp(20px,2.4vw,26px);
+  letter-spacing: .04em;
+  color: #16181d;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.lc-site-signup {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fff;
+  background: #1a1a1a;
+  padding: 0.45rem 1.25rem;
+  border-radius: 100px;
+  text-decoration: none;
+  letter-spacing: .02em;
+}
+
+/* ── Landing scroll scene — static structural styles ────────────────
+ *
+ * Only GSAP-managed values (opacity, y, rotationY, scale — set by
+ * gsap.set / gsap.to at runtime) remain as inline styles so that GSAP
+ * can read and interpolate them correctly.  Everything else lives here.
+ * ──────────────────────────────────────────────────────────────────── */
+
+.lc-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  perspective: 1100px;
+  perspective-origin: 50% 42%;
+  background: linear-gradient(180deg,#fff 0%,#fff 45%,#eceef1 100%);
+  z-index: 1;
+}
+
+/* Hero "CHOTU" title — GSAP animates rotationY, y, opacity, scale */
+.lc-title {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  font-family: 'Clash Display','Space Grotesk',sans-serif;
+  font-weight: 700;
+  font-size: clamp(64px,16vw,200px);
+  letter-spacing: .02em;
+  color: #16181d;
+  will-change: transform, opacity;
+  perspective: 600px;
+  z-index: 6;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Wooden table wrapper */
+.lc-table-wrap {
+  position: absolute;
+  bottom: -2%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(64vw,620px);
+  z-index: 5;
+}
+
+/* Shared position for the two cross-faded table images */
+.lc-table-img {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Rising object wrapper — GSAP animates opacity, yPercent, scale, z */
+.lc-obj-wrap {
+  position: absolute;
+  left: 40%;
+  bottom: 30%;
+  opacity: 0;
+  will-change: transform, opacity;
+  z-index: 4;
+  transform-style: preserve-3d;
+}
+
+/* Ending CTA section — GSAP animates opacity (0 → 1) */
+.lc-cta {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  width: min(86vw,640px);
+  text-align: center;
+  opacity: 0;
+  z-index: 7;
+}
+
+/* Flex row: [CHOTU heading] [LandingOwl] */
+.lc-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18em;
+  margin-bottom: .3em;
+}
+
+/* "CHOTU" heading inside the CTA */
+.lc-cta-heading {
+  font-family: 'Clash Display','Space Grotesk',sans-serif;
+  font-size: clamp(40px,8vw,92px);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: .01em;
+  color: #16181d;
+}
+
+/* Tagline paragraph */
+.lc-cta-tagline {
+  font-family: var(--font-fraunces),'Fraunces',serif;
+  font-size: clamp(17px,2vw,22px);
+  color: #3a3d44;
+  margin-bottom: 1.4em;
+}
+
+/* Row of CTA action buttons */
+.lc-cta-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* "Get started" filled pill */
+.lc-btn-primary {
+  background: #1a1a1a;
+  color: #fff;
+  font-family: var(--font-space-grotesk),'Space Grotesk',sans-serif;
+  font-weight: 600;
+  font-size: clamp(15px,1.5vw,18px);
+  padding: .75em 2em;
+  border-radius: 100px;
+  text-decoration: none;
+  letter-spacing: .01em;
+}
+
+/* "Sign in" outline pill */
+.lc-btn-outline {
+  border: 1.5px solid rgba(0,0,0,.2);
+  color: #1a1a1a;
+  font-family: var(--font-space-grotesk),'Space Grotesk',sans-serif;
+  font-weight: 500;
+  font-size: clamp(15px,1.5vw,18px);
+  padding: .75em 2em;
+  border-radius: 100px;
+  text-decoration: none;
+}
