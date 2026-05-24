@@ -89,7 +89,7 @@ export async function signUp(
     return { message: 'Could not create account. Please try again.' }
   }
 
-  redirect('/verify-email')
+  return { success: true }
 }
 
 export async function logIn(
@@ -128,7 +128,7 @@ export async function logIn(
     return { message: 'Invalid credentials.' }
   }
 
-  redirect('/dashboard')
+  return { success: true }
 }
 
 export async function logOut(_: FormData): Promise<void> {

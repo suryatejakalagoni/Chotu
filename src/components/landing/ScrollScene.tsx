@@ -88,6 +88,7 @@ function buildTitleHTML(title: string, highlight: string): string {
 // ── Component ─────────────────────────────────────────────────────
 export default function ScrollScene() {
   const scrollRef    = useRef<HTMLDivElement>(null)
+  const stageRef     = useRef<HTMLDivElement>(null)   // fixed stage — used for img query
   const titleRef     = useRef<HTMLDivElement>(null)
   const tClosedRef   = useRef<HTMLImageElement>(null)
   const tOpenRef     = useRef<HTMLImageElement>(null)
@@ -239,7 +240,43 @@ export default function ScrollScene() {
       master.to(owlRise, { y: 0, duration: 0.5, ease: 'back.out(1.4)' }, '<0.15')
     })
 
-    return () => ctx.revert()
+    // ── Image-load fix: ScrollTrigger must re-measure after all imgs decode ──
+    //
+    // Root cause: on first visit (no cache) the <img> elements inside the
+    // fixed stage have zero intrinsic height when gsap.context() runs, so
+    // every yPercent transform is evaluated against 0px.  On reload the
+    // browser returns cached images synchronously so the dimensions are
+    // correct before the effect fires.  Calling ScrollTrigger.refresh()
+    // once every image has loaded forces a full re-measurement of all
+    // trigger start/end pixel positions and re-evaluates percent-based
+    // transforms against the real element heights.
+    let active = true
+
+    const imgs = Array.from(
+      stageRef.current?.querySelectorAll('img') ?? []
+    ) as HTMLImageElement[]
+
+    Promise.all(
+      imgs.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((res) => {
+              img.addEventListener('load',  () => res(), { once: true })
+              img.addEventListener('error', () => res(), { once: true })
+            })
+      )
+    ).then(() => { if (active) ScrollTrigger.refresh() })
+
+    // Safety net: if the Promise.all resolved before layout was stable
+    // (e.g. custom fonts shifted heights) the window load event catches it.
+    const onWindowLoad = () => { if (active) ScrollTrigger.refresh() }
+    window.addEventListener('load', onWindowLoad)
+
+    return () => {
+      active = false                                   // cancel pending .then()
+      window.removeEventListener('load', onWindowLoad)
+      ctx.revert()
+    }
   }, [])
 
   // ── JSX ───────────────────────────────────────────────────────────
@@ -250,6 +287,7 @@ export default function ScrollScene() {
        * zIndex:1 keeps it above the scroll spacer but below the header (zIndex:50).
        */}
       <div
+        ref={stageRef}
         style={{
           position: 'fixed',
           inset: 0,

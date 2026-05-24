@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useActionState } from 'react'
+import { useState, useEffect, useRef, useActionState } from 'react'
+import { useRouter } from 'next/navigation'
 import { signUp, signInWithGoogle } from '@/lib/actions/auth'
 import { type SignupFormState } from '@/lib/validations/auth'
 import { useOwlState } from '@/components/auth/OwlContext'
 import { GalaxyButton } from '@/components/auth/GalaxyButton'
+import { GalaxyWipe } from '@/components/auth/GalaxyWipe'
 
 const inputClass =
   'mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors'
@@ -43,7 +45,32 @@ export default function SignupForm() {
   )
   const { setOwlState } = useOwlState()
   const [showPassword, setShowPassword] = useState(false)
-  const [eyeKey, setEyeKey] = useState(0)
+  const [eyeKey, setEyeKey]             = useState(0)
+  const router                          = useRouter()
+  const [authError, setAuthError]       = useState<string | null>(null)
+
+  // Ref on the div wrapping GalaxyButton so we can read its viewport coords.
+  const btnWrapperRef = useRef<HTMLDivElement>(null)
+  const [wipeActive, setWipeActive] = useState(false)
+  const [wipeOrigin, setWipeOrigin] = useState({ x: 0, y: 0 })
+  // Guard against the effect firing twice (React strict-mode double-invoke).
+  const wipeArmedRef = useRef(false)
+
+  useEffect(() => {
+    setAuthError(state?.message ?? null)
+  }, [state])
+
+  useEffect(() => {
+    if (!state?.success || wipeArmedRef.current) return
+    wipeArmedRef.current = true
+
+    const rect = btnWrapperRef.current?.getBoundingClientRect()
+    setWipeOrigin({
+      x: rect && rect.width  > 0 ? rect.left + rect.width  / 2 : window.innerWidth  / 2,
+      y: rect && rect.height > 0 ? rect.top  + rect.height / 2 : window.innerHeight / 2,
+    })
+    setWipeActive(true)
+  }, [state])
 
   const togglePassword = () => {
     setShowPassword(v => !v)
@@ -52,20 +79,11 @@ export default function SignupForm() {
 
   return (
     <div className="space-y-6">
-      <form action={action} className="space-y-4">
-
-        {state?.message && (
-          <div
-            className="rounded-lg px-3 py-2.5 text-sm"
-            style={{
-              background: 'rgba(220,38,38,0.06)',
-              color: '#dc2626',
-              border: '1px solid rgba(220,38,38,0.18)',
-            }}
-          >
-            {state.message}
-          </div>
-        )}
+      <form
+        action={action}
+        onSubmit={() => setAuthError(null)}
+        className="space-y-4"
+      >
 
         {/* Username */}
         <div>
@@ -179,7 +197,16 @@ export default function SignupForm() {
           ))}
         </div>
 
-        <GalaxyButton pending={pending} label="Create account" pendingLabel="Creating account…" />
+        {/* Wrapper div gives us a getBoundingClientRect target for wipe origin. */}
+        <div ref={btnWrapperRef}>
+          <GalaxyButton pending={pending} label="Create account" pendingLabel="Creating account…" />
+        </div>
+
+        {authError && (
+          <p role="alert" className="mt-2 text-sm" style={{ color: '#dc2626' }}>
+            {authError}
+          </p>
+        )}
       </form>
 
       {/* Divider */}
@@ -222,6 +249,18 @@ export default function SignupForm() {
           Log in
         </a>
       </p>
+
+      {/*
+       * Sibling of <form>, not a child — position:fixed means DOM placement
+       * doesn't affect layout, but keeping it outside the form avoids any
+       * stacking-context or transform-clipping surprises from the form card.
+       */}
+      <GalaxyWipe
+        active={wipeActive}
+        originX={wipeOrigin.x}
+        originY={wipeOrigin.y}
+        onComplete={() => router.push('/verify-email')}
+      />
     </div>
   )
 }
