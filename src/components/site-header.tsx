@@ -106,10 +106,16 @@ export default function SiteHeader() {
             borderRadius: '100px',
             textDecoration: 'none',
             letterSpacing: '.02em',
-            whiteSpace: 'nowrap',
           }}
         >
-          Sign up
+          {/*
+           * The <span> here is intentional — same fix as the CHOTU title div.
+           * React 19's concurrent hydrator wraps bare text in a <span> when
+           * the parent has white-space:nowrap; Next.js SSR does not.  Moving
+           * whiteSpace:nowrap onto an explicit <span> makes both render paths
+           * produce identical DOM so hydration succeeds.
+           */}
+          <span style={{ whiteSpace: 'nowrap' }}>Sign up</span>
         </Link>
       </nav>
     </header>
