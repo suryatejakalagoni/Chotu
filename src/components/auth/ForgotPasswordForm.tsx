@@ -196,13 +196,6 @@ export default function ForgotPasswordForm() {
 
           <GalaxyButton pending={step1Pending} label="Send code" pendingLabel="Sending…" />
         </form>
-
-        <p className="text-center text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
-          Remember it?{' '}
-          <a href="/login" className="font-semibold hover:underline" style={{ color: '#16181d' }}>
-            Sign in
-          </a>
-        </p>
       </div>
     )
   }
