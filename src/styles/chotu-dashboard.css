@@ -1177,6 +1177,7 @@ html:not(.dark) .rem-custom-input { color-scheme: light; }
 }
 
 @media (max-width: 767px) {
+  .navbar         { overflow: visible; } /* wave-nav is hidden here; allow menu to slide out below */
   .navbar__nav    { display: none; }
   .navbar__right  { display: none; }
   .navbar__hamburger { display: flex; }
