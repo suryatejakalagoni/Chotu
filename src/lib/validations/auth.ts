@@ -50,3 +50,37 @@ export type LoginFormState =
       success?: boolean
     }
   | undefined
+
+export const ForgotPasswordEmailSchema = z.object({
+  email: z.email({ error: 'Please enter a valid email address.' }).trim(),
+})
+
+export const NewPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, { error: 'Password must be at least 8 characters.' })
+      .regex(/[a-zA-Z]/, { error: 'Password must contain at least one letter.' })
+      .regex(/[0-9]/, { error: 'Password must contain at least one number.' }),
+    confirm: z.string(),
+  })
+  .refine((d) => d.password === d.confirm, {
+    message: 'Passwords do not match.',
+    path: ['confirm'],
+  })
+
+export type ForgotPasswordState =
+  | {
+      errors?: { email?: string[] }
+      message?: string
+      success?: boolean
+    }
+  | undefined
+
+export type UpdatePasswordState =
+  | {
+      errors?: { password?: string[]; confirm?: string[] }
+      message?: string
+      success?: boolean
+    }
+  | undefined

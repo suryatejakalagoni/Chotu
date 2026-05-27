@@ -7,8 +7,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   SignupSchema,
   LoginSchema,
+  ForgotPasswordEmailSchema,
+  NewPasswordSchema,
   type SignupFormState,
   type LoginFormState,
+  type ForgotPasswordState,
+  type UpdatePasswordState,
 } from '@/lib/validations/auth'
 
 const RATE_LIMIT_MAX = 5
@@ -155,6 +159,76 @@ export async function signInWithGoogle(_: FormData): Promise<void> {
   }
 
   redirect(data.url)
+}
+
+export async function requestPasswordReset(
+  _prevState: ForgotPasswordState,
+  formData: FormData
+): Promise<ForgotPasswordState> {
+  const ip = await getClientIp()
+
+  const allowed = await checkRateLimit(`pwreset:${ip}`)
+  if (!allowed) {
+    // Neutral message — same as success to prevent timing enumeration
+    return { success: true }
+  }
+
+  const validated = ForgotPasswordEmailSchema.safeParse({
+    email: formData.get('email'),
+  })
+
+  if (!validated.success) {
+    return { errors: validated.error.flatten().fieldErrors }
+  }
+
+  const { email } = validated.data
+  const supabase = await createClient()
+
+  // Call regardless of whether account exists — never leak account existence.
+  await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false },
+  })
+
+  return { success: true }
+}
+
+export async function updatePassword(
+  _prevState: UpdatePasswordState,
+  formData: FormData
+): Promise<UpdatePasswordState> {
+  const validated = NewPasswordSchema.safeParse({
+    password: formData.get('password'),
+    confirm: formData.get('confirm'),
+  })
+
+  if (!validated.success) {
+    return { errors: validated.error.flatten().fieldErrors }
+  }
+
+  const { password } = validated.data
+
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return { message: 'Session expired. Please start over.' }
+    }
+
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) {
+      console.error('[updatePassword]', error.message)
+      return { message: 'Could not update password. Please try again.' }
+    }
+  } catch {
+    return { message: 'Something went wrong. Please try again.' }
+  }
+
+  return { success: true }
 }
 
 export async function resendVerification(_: FormData): Promise<void> {

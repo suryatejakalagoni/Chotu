@@ -114,13 +114,22 @@ export default function LoginForm() {
 
         {/* Password */}
         <div>
-          <label
-            htmlFor="password"
-            className="block text-xs font-medium uppercase tracking-widest mb-1"
-            style={{ color: 'rgba(22,24,29,0.65)' }}
-          >
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label
+              htmlFor="password"
+              className="block text-xs font-medium uppercase tracking-widest"
+              style={{ color: 'rgba(22,24,29,0.65)' }}
+            >
+              Password
+            </label>
+            <a
+              href="/forgot-password"
+              className="text-xs hover:underline"
+              style={{ color: 'rgba(22,24,29,0.55)' }}
+            >
+              Forgot password?
+            </a>
+          </div>
           <div className="relative mt-1">
             <input
               id="password"
