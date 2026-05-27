@@ -65,6 +65,33 @@ const MON_L = ['January','February','March','April','May','June','July','August'
 const DOW_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const DOW_L = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
+// Parse a YYYY-MM-DD date string without constructing a Date object.
+// Avoids timezone-sensitivity: new Date("2024-04-28").getDate() differs between UTC
+// server and negative-offset clients. String splitting is always deterministic.
+function parseDateISO(iso: string): { y: number; m: number; d: number } {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  return { y, m: m - 1, d } // m is 0-indexed to match Date.getMonth()
+}
+function fmtDateShort(iso: string): string {
+  const { d, m } = parseDateISO(iso)
+  return `${d} ${MON_S[m]}`
+}
+function fmtDateDow(iso: string): string {
+  const { y, m, d } = parseDateISO(iso)
+  // Tomohiko Sakamoto — returns 0=Sun…6=Sat, no Date object needed
+  const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
+  const yr = m < 2 ? y - 1 : y // m is 0-indexed; algorithm uses 1-based months 3–14
+  const dow = (yr + Math.floor(yr/4) - Math.floor(yr/100) + Math.floor(yr/400) + t[m] + d) % 7
+  return `${DOW_L[dow]}, ${d} ${MON_S[m]}`
+}
+// 0=Sun, 6=Sat — same algorithm, returns number
+function dowOf(iso: string): number {
+  const { y, m, d } = parseDateISO(iso)
+  const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
+  const yr = m < 2 ? y - 1 : y
+  return (yr + Math.floor(yr/4) - Math.floor(yr/100) + Math.floor(yr/400) + t[m] + d) % 7
+}
+
 function fmtMoney(n: number): string {
   const r = Math.round(n)
   const abs = Math.abs(r)
@@ -81,15 +108,13 @@ function dayKey(iso: string): string {
 function dayLabel(iso: string): string {
   const dStr = iso.slice(0, 10)
   const now = new Date()
-  // Build local-date strings without toLocaleDateString (TZ-safe for IST)
   const pad = (n: number) => String(n).padStart(2, '0')
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
   const yest = new Date(now); yest.setDate(yest.getDate() - 1)
   const yestStr = `${yest.getFullYear()}-${pad(yest.getMonth() + 1)}-${pad(yest.getDate())}`
   if (dStr === todayStr) return 'Today'
   if (dStr === yestStr) return 'Yesterday'
-  const d = new Date(iso)
-  return `${DOW_L[d.getDay()]}, ${d.getDate()} ${MON_S[d.getMonth()]}`
+  return fmtDateDow(iso) // timezone-independent
 }
 
 // ─── donut chart ──────────────────────────────────────────────────────────────
@@ -217,7 +242,7 @@ function BarChart({ days }: { days: BarDay[] }) {
 
   return (
     <div ref={wrapRef} style={{ width: '100%' }}>
-      <svg className="bar-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', width: '100%', height: H }}>
+      <svg className="bar-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
         {tickVals.map((v, i) => (
           <g key={i}>
             <line className="axis-line" x1={PADL} y1={yScale(v)} x2={W - PADR} y2={yScale(v)} />
@@ -229,7 +254,7 @@ function BarChart({ days }: { days: BarDay[] }) {
           const h = mounted ? (d.total / max) * innerH : 0
           const y = PADT + innerH - h
           const isPeak = i === peakIdx && d.total > 0
-          const dow = new Date(d.date).getDay()
+          const dow = dowOf(d.date)
           const weekend = dow === 0 || dow === 6
           return (
             <g key={d.date}>
@@ -238,7 +263,7 @@ function BarChart({ days }: { days: BarDay[] }) {
                 x={x} y={y} width={barW} height={h} rx={Math.min(3, barW / 2)}
                 style={{ transition: `y .8s var(--ease-out,ease) ${i * 12}ms, height .8s var(--ease-out,ease) ${i * 12}ms` }}
               >
-                <title>{new Date(d.date).getDate()} {MON_S[new Date(d.date).getMonth()]} · {fmtMoney(d.total)}</title>
+                <title suppressHydrationWarning>{fmtDateShort(d.date)} · {fmtMoney(d.total)}</title>
               </rect>
               {isPeak && mounted && (
                 <g transform={`translate(${x + barW / 2} ${y - 8})`}>
@@ -255,7 +280,7 @@ function BarChart({ days }: { days: BarDay[] }) {
         {days.map((d, i) => i % labelStride === 0 && (
           <text key={'l' + i} className="axis-text"
             x={PADL + i * slotW + slotW / 2} y={H - 10} textAnchor="middle">
-            {new Date(d.date).getDate()} {MON_S[new Date(d.date).getMonth()]}
+            {fmtDateShort(d.date)}
           </text>
         ))}
       </svg>
@@ -273,8 +298,7 @@ function Sparkline({ values, color = 'var(--accent)' }: { values: number[]; colo
     `${i === 0 ? 'M' : 'L'} ${(i / (values.length - 1)) * W} ${H - (v / max) * H}`
   ).join(' ')
   return (
-    <svg className="spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
-      style={{ display: 'block', width: '100%', height: H }}>
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
       <path d={path + ` L ${W} ${H} L 0 ${H} Z`} fill={color} opacity="0.2" />
       <path d={path} stroke={color} fill="none" strokeWidth="1.5" />
     </svg>
@@ -766,7 +790,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
               {avgPerDay > 200 ? 'Slightly above usual.' : 'Tracking comfortably.'}
             </div>
           </div>
-          <div className="exp-stat" style={{ position: 'relative' }}>
+          <div className="exp-stat">
             <div className="l">Top category</div>
             {catData[0] ? (
               <>
@@ -814,7 +838,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
             }
           </div>
 
-          <div className="exp-card" style={{ position: 'relative' }}>
+          <div className="exp-card">
             <div className="exp-card-head">
               <h3>Daily spend</h3>
               <div className="tabs">

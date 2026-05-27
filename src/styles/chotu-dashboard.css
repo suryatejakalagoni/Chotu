@@ -674,7 +674,10 @@ html:not(.dark) .chotu-ui {
 .donut-legend .row .pct { color: var(--fg-3); font-size: 11px; min-width: 36px; text-align: right; font-family: var(--font-mono); }
 
 /* bar chart */
-.bar-svg { display: block; max-width: 100%; }
+/* bar-svg / spark — inline styles removed; React 19 serialises numeric height differently
+   for SVG elements vs HTML, causing SSR hydration mismatches. All layout in CSS only. */
+.bar-svg { display: block; width: 100%; height: 180px; max-width: 100%; }
+svg.spark  { display: block; width: 100%; height: 28px; }
 .bar-svg .bar { fill: var(--accent); transition: fill .2s, transform .3s var(--ease-out); cursor: pointer; transform-box: fill-box; }
 .bar-svg .bar:hover { fill: var(--accent-soft); transform: translateY(-3px); }
 .bar-svg .bar.weekend { fill: rgba(255,210,77,0.45); }
