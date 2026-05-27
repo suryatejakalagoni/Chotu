@@ -12,7 +12,7 @@ const PROTECTED_ROUTES = [
 
 const AUTH_ROUTES = ["/login", "/signup"];
 
-export default async function proxy(request: NextRequest) {
+export default async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
 
