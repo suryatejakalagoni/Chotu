@@ -189,7 +189,7 @@ function ExamsCard({ exams }: { exams: DashExam[] }) {
                 <div className="body">
                   <div className="ititle">{e.title}</div>
                   <div className="imeta">
-                    {date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    {date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' })}
                     {e.venue ? ` · ${e.venue}` : ''}
                   </div>
                 </div>
@@ -230,7 +230,7 @@ function ExpensesCard({ expenses }: { expenses: DashExpense[] }) {
                 <div className="body">
                   <div className="ititle">{e.title}</div>
                   <div className="imeta">
-                    {e.category_name ?? 'Misc'} · {new Date(e.spent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    {e.category_name ?? 'Misc'} · {new Date(e.spent_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })}
                   </div>
                 </div>
                 <div className="iright" style={{ color: 'var(--danger)' }}>− ₹{e.amount}</div>
@@ -333,8 +333,8 @@ export function DashboardClient({
       <section className="dash-greeting">
         <div>
           <h1>Hey, <span className="hl">{userName}</span>!</h1>
-          <div className="date">
-            {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+          <div className="date" suppressHydrationWarning>
+            {now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
         </div>
         <div className="day-stats">

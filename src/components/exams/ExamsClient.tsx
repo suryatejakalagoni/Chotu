@@ -165,7 +165,7 @@ function ExamRow({ e, onDone, onDel }: {
         </div>
         <div className="title">{e.title}</div>
         <div className="meta">
-          <span>{new Date(e.exam_at).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}, {new Date(e.exam_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
+          <span>{new Date(e.exam_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' })}, {new Date(e.exam_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}</span>
           {e.venue && <><span>·</span><span>{e.venue}</span></>}
         </div>
         {e.syllabus_text && (
@@ -513,7 +513,7 @@ export function ExamsClient({ initialExams }: { initialExams: ExamItem[] }) {
                   {next.subject}<small style={{ color: 'var(--fg-3)' }}>{fmtCountdown(next.exam_at)}</small>
                 </div>
                 <div style={{ marginTop: 12, fontSize: 12, color: 'var(--fg-3)' }}>
-                  {new Date(next.exam_at).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  {new Date(next.exam_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' })}
                   {next.venue ? ` · ${next.venue}` : ''}
                 </div>
               </>

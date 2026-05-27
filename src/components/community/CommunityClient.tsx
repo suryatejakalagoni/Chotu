@@ -27,7 +27,7 @@ function relTime(iso: string) {
   const m = Math.floor(ms / 60000); if (m < 60) return `${m}m`
   const h = Math.floor(m / 60); if (h < 24) return `${h}h`
   const d = Math.floor(h / 24); if (d < 30) return `${d}d`
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  return new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })
 }
 
 function colorFor(name: string) {
@@ -95,8 +95,8 @@ function ActivityChart({ posts }: { posts: PostWithMeta[] }) {
             </div>
           </div>
           <div className="act-lbl">
-            <span className="dow">{d.date.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
-            <span className="dom">{d.date.getDate()}</span>
+            <span className="dow" suppressHydrationWarning>{d.date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short' })}</span>
+            <span className="dom" suppressHydrationWarning>{d.date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric' })}</span>
           </div>
         </div>
       ))}

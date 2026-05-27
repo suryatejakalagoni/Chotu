@@ -58,63 +58,86 @@ function catDisplay(cat: Category | null | undefined) {
   return { color, glyph, soft: hexToSoft(color) }
 }
 
-// Static lookup tables — produce identical output on Node.js (server) and browser (client).
-// Never use toLocaleDateString / toLocaleString in SSR-rendered paths; ICU data differs.
-const MON_S = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-const MON_L = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const DOW_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const DOW_L = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+// ─── Intl formatters — pinned locale + timeZone ──────────────────────────────
+// Both locale ('en-IN') and timeZone ('Asia/Kolkata') are explicit so Vercel's
+// Node.js and Chrome's V8 produce byte-for-byte identical strings.
+// Constructed once at module level (not inside render) for performance.
+const _FMT_SHORT = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  day: 'numeric',
+  month: 'short',
+})
+const _FMT_DOW_LONG = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'short',
+})
+const _FMT_MONTH = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  month: 'short',
+})
+const _FMT_MONTH_LONG = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  month: 'long',
+})
+const _FMT_DOW_SHORT = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+})
 
-// Parse a YYYY-MM-DD date string without constructing a Date object.
-// Avoids timezone-sensitivity: new Date("2024-04-28").getDate() differs between UTC
-// server and negative-offset clients. String splitting is always deterministic.
-function parseDateISO(iso: string): { y: number; m: number; d: number } {
+// Parse 'YYYY-MM-DD' as UTC midnight — deterministic regardless of server/client tz.
+// new Date('YYYY-MM-DD') already parses as UTC midnight per spec, but being
+// explicit avoids any engine quirk and makes the intent clear.
+function isoToUTC(iso: string): Date {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
-  return { y, m: m - 1, d } // m is 0-indexed to match Date.getMonth()
+  return new Date(Date.UTC(y, m - 1, d))
 }
+
 function fmtDateShort(iso: string): string {
-  const { d, m } = parseDateISO(iso)
-  return `${d} ${MON_S[m]}`
+  return _FMT_SHORT.format(isoToUTC(iso)) // e.g. "28 Apr"
 }
 function fmtDateDow(iso: string): string {
-  const { y, m, d } = parseDateISO(iso)
-  // Tomohiko Sakamoto — returns 0=Sun…6=Sat, no Date object needed
-  const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
-  const yr = m < 2 ? y - 1 : y // m is 0-indexed; algorithm uses 1-based months 3–14
-  const dow = (yr + Math.floor(yr/4) - Math.floor(yr/100) + Math.floor(yr/400) + t[m] + d) % 7
-  return `${DOW_L[dow]}, ${d} ${MON_S[m]}`
+  return _FMT_DOW_LONG.format(isoToUTC(iso)) // e.g. "Sunday, 28 Apr"
 }
-// 0=Sun, 6=Sat — same algorithm, returns number
+
+// 0=Sun…6=Sat via Tomohiko Sakamoto — pure math, no Date object, no tz dependency.
+// Used for weekend bar styling in the chart (can't get numeric dow from Intl easily).
 function dowOf(iso: string): number {
-  const { y, m, d } = parseDateISO(iso)
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const mi = m - 1 // 0-indexed month for algorithm
   const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
-  const yr = m < 2 ? y - 1 : y
-  return (yr + Math.floor(yr/4) - Math.floor(yr/100) + Math.floor(yr/400) + t[m] + d) % 7
+  const yr = mi < 2 ? y - 1 : y
+  return (yr + Math.floor(yr/4) - Math.floor(yr/100) + Math.floor(yr/400) + t[mi] + d) % 7
 }
 
 function fmtMoney(n: number): string {
   const r = Math.round(n)
   const abs = Math.abs(r)
   const s = String(abs)
-  // Indian grouping: last 3 digits, then groups of 2 from the right
+  // Indian grouping: last 3 digits, then pairs of 2 from the right.
+  // Pure regex — no Intl, no locale dependency.
   const formatted = s.length <= 3 ? s
     : s.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + s.slice(-3)
   return (r < 0 ? '-₹' : '₹') + formatted
 }
 function dayKey(iso: string): string {
-  // Slice directly — avoids Date construction and is TZ-neutral for date-only keys
-  return iso.slice(0, 10)
+  return iso.slice(0, 10) // TZ-neutral date key
 }
+// dayLabel uses new Date() for today/yesterday — genuinely runtime-dependent.
+// The caller suppresses the hydration warning on the element that renders this.
 function dayLabel(iso: string): string {
   const dStr = iso.slice(0, 10)
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  const yest = new Date(now); yest.setDate(yest.getDate() - 1)
-  const yestStr = `${yest.getFullYear()}-${pad(yest.getMonth() + 1)}-${pad(yest.getDate())}`
+  // Get today/yesterday in IST so the comparison matches what the user sees
+  const istFmt = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Kolkata' }) // sv-SE → YYYY-MM-DD
+  const todayStr = istFmt.format(new Date())
+  const yest = new Date(); yest.setDate(yest.getDate() - 1)
+  const yestStr = istFmt.format(yest)
   if (dStr === todayStr) return 'Today'
   if (dStr === yestStr) return 'Yesterday'
-  return fmtDateDow(iso) // timezone-independent
+  return fmtDateDow(iso)
 }
 
 // ─── donut chart ──────────────────────────────────────────────────────────────
@@ -263,7 +286,7 @@ function BarChart({ days }: { days: BarDay[] }) {
                 x={x} y={y} width={barW} height={h} rx={Math.min(3, barW / 2)}
                 style={{ transition: `y .8s var(--ease-out,ease) ${i * 12}ms, height .8s var(--ease-out,ease) ${i * 12}ms` }}
               >
-                <title suppressHydrationWarning>{fmtDateShort(d.date)} · {fmtMoney(d.total)}</title>
+                <title>{fmtDateShort(d.date)} · {fmtMoney(d.total)}</title>
               </rect>
               {isPeak && mounted && (
                 <g transform={`translate(${x + barW / 2} ${y - 8})`}>
@@ -666,7 +689,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
     const now = new Date()
     return [2, 1, 0].map(offset => {
       const d = new Date(now.getFullYear(), now.getMonth() - offset, 1)
-      return { month: d.getMonth(), label: MON_S[d.getMonth()] }
+      return { month: d.getMonth(), label: _FMT_MONTH.format(d) }
     })
   }, [])
 
@@ -708,7 +731,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
     }
   }
 
-  const monthName = MON_L[filterMonth]
+  const monthName = _FMT_MONTH_LONG.format(new Date(2024, filterMonth, 1))
 
   // ── filter by category name (for donut click) ────────────────────────────
 
@@ -858,7 +881,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
                   <div className="bar-foot-cell">
                     <span className="l">Peak day</span>
                     <span className="v">{peak.total > 0 ? fmtMoney(peak.total) : '—'}</span>
-                    <span className="s">{peak.date ? (() => { const _d = new Date(peak.date); return `${DOW_S[_d.getDay()]}, ${_d.getDate()} ${MON_S[_d.getMonth()]}` })() : 'no spending yet'}</span>
+                    <span className="s">{peak.date ? _FMT_DOW_SHORT.format(isoToUTC(peak.date)) : 'no spending yet'}</span>
                   </div>
                   <div className="bar-foot-cell">
                     <span className="l">Last 7 days</span>

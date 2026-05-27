@@ -58,7 +58,7 @@ function fmtDueLabel(iso: string): string {
   if (d === 0) return 'Today'
   if (d === 1) return 'Tomorrow'
   if (d < 7) return `in ${d}d`
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  return new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })
 }
 function fmtMin(m: number | null): string {
   if (!m) return '—'
@@ -177,8 +177,8 @@ function WeekTimeline({ items }: { items: AssignmentItem[] }) {
       {days.map((d, i) => (
         <div key={i} className={`tl-col${i === 0 ? ' today' : ''}`}>
           <div className="tl-head">
-            <span className="dow">{d.date.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
-            <span className="dom">{d.date.getDate()}</span>
+            <span className="dow" suppressHydrationWarning>{d.date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short' })}</span>
+            <span className="dom" suppressHydrationWarning>{d.date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric' })}</span>
           </div>
           <div className="tl-body">
             {d.items.length === 0 && i === 0 && <div className="tl-empty">Today&apos;s clear</div>}
@@ -234,7 +234,7 @@ function AsnRow({ a, onStatus, onDel, onProgress }: {
         </div>
         <div className="title">{a.title}</div>
         <div className="meta">
-          <span>Due {new Date(a.due_at).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+          <span>Due {new Date(a.due_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' })}</span>
           <span>·</span>
           <span>~{fmtMin(a.estimated_minutes)}</span>
           <span>·</span>

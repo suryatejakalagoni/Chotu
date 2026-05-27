@@ -15,8 +15,8 @@ function dayLabel(iso: string) {
   const diff = Math.floor((now.getTime() - d.getTime()) / (24 * 3600 * 1000))
   if (diff === 0) return 'Today'
   if (diff === 1) return 'Yesterday'
-  if (diff < 7) return d.toLocaleDateString('en-IN', { weekday: 'long' })
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  if (diff < 7) return d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' })
+  return d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' })
 }
 
 function colorFor(name: string) {
