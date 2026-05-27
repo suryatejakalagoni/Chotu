@@ -1,4 +1,4 @@
-const CACHE = 'chotu-v1'
+const CACHE = 'chotu-v2'
 const OFFLINE_URL = '/offline'
 
 // Pre-cache the offline fallback page on install
