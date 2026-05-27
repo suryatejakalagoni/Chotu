@@ -27,7 +27,8 @@ export const examCreateSchema = z.object({
   venue:         z.string().max(200).trim().optional(),
   syllabus_text: z.string().max(5000).trim().optional(),
   notes:         z.string().max(2000).trim().optional(),
-  status:        z.enum(['upcoming', 'completed', 'cancelled']).default('upcoming'),
+  // TODO: consolidate — 'completed'/'cancelled' are Day 7 legacy; 'ongoing'/'done'/'missed' are Phase 6 UI values
+  status:        z.enum(['upcoming', 'completed', 'cancelled', 'ongoing', 'done', 'missed']).default('upcoming'),
 })
 
 export const examUpdateSchema = examCreateSchema
@@ -36,7 +37,7 @@ export const examUpdateSchema = examCreateSchema
 
 export const examStatusSchema = z.object({
   id:     z.string().uuid(),
-  status: z.enum(['upcoming', 'completed', 'cancelled']),
+  status: z.enum(['upcoming', 'completed', 'cancelled', 'ongoing', 'done', 'missed']),
 })
 
 export const topicCreateSchema = z.object({

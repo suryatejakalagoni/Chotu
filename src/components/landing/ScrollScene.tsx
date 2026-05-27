@@ -1,10 +1,16 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import Link from 'next/link'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LandingOwl from './LandingOwl'
+
+// useLayoutEffect fires synchronously before paint on the client.
+// useEffect is used as the fallback during SSR (where layout effects don't run),
+// which is safe because the server never paints anyway.
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 // ── Feature data ──────────────────────────────────────────────────
 interface Feature {
@@ -103,17 +109,63 @@ export default function ScrollScene() {
   // the CSS float loop runs on the inner .landing-owl-wrap so no conflict.
   const owlRiseRef   = useRef<HTMLDivElement>(null)
 
+  // ── Phase 1: apply initial GSAP states synchronously before first paint ──
+  //
+  // useEffect fires AFTER paint; any gsap.set calls there let elements flash
+  // at their natural (unstyled) size for one frame.  useLayoutEffect fires
+  // synchronously after DOM insertion but before the browser paints, so the
+  // title centering (xPercent/yPercent) and all hidden-by-default opacities
+  // are already correct on frame 0.  This eliminates the oversized title and
+  // stray text fragments visible on a cold first load.
+  useIsomorphicLayoutEffect(() => {
+    gsap.registerPlugin(ScrollTrigger)
+
+    const title   = titleRef.current
+    const tClosed = tClosedRef.current
+    const tOpen   = tOpenRef.current
+    const objWrap = objWrapRef.current
+    const feature = featureRef.current
+    const cta     = ctaRef.current
+    const owlRise = owlRiseRef.current
+
+    if (!title || !tClosed || !tOpen || !objWrap || !feature || !cta || !owlRise) return
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (reduced) {
+      const f = FEATURES[0]
+      // xPercent/yPercent: GSAP owns the centering as percentages — never in CSS
+      // (see CLAUDE.md 2026-05-24 entry) so GSAP reads its own _gsap cache only.
+      gsap.set(title,   { xPercent: -50, yPercent: -50, opacity: 1 })
+      gsap.set(objWrap, { opacity: 1, scale: 1, xPercent: -50, yPercent: f.riseY })
+      gsap.set(feature, { opacity: 1 })
+      gsap.set(tClosed, { opacity: 1 })
+      gsap.set(tOpen,   { opacity: 0 })
+      gsap.set(cta,     { opacity: 0 })
+      gsap.set(owlRise, { y: 0 })
+    } else {
+      gsap.set(title,   { xPercent: -50, yPercent: -50, opacity: 1 })
+      gsap.set(objWrap, { opacity: 0 })
+      gsap.set(feature, { opacity: 0 })
+      gsap.set(cta,     { opacity: 0 })
+      gsap.set(tClosed, { opacity: 1 })
+      gsap.set(tOpen,   { opacity: 0 })
+      // Owl starts 60 px below its resting position; rises as CTA fades in.
+      gsap.set(owlRise, { y: 60 })
+    }
+  }, [])
+
+  // ── Phase 2: build timelines + ScrollTriggers, then refresh on asset load ─
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger)
 
-    // Capture refs — bail if any are missing
-    const title      = titleRef.current
-    const tClosed    = tClosedRef.current
-    const tOpen      = tOpenRef.current
-    const objWrap    = objWrapRef.current
-    const feature    = featureRef.current
-    const cta        = ctaRef.current
-    const owlRise    = owlRiseRef.current
+    const title       = titleRef.current
+    const tClosed     = tClosedRef.current
+    const tOpen       = tOpenRef.current
+    const objWrap     = objWrapRef.current
+    const feature     = featureRef.current
+    const cta         = ctaRef.current
+    const owlRise     = owlRiseRef.current
     const scrollSpace = scrollRef.current
 
     if (
@@ -140,43 +192,16 @@ export default function ScrollScene() {
     }
 
     // ── Reduced-motion path: static, no scrub ────────────────────
+    // Initial states were already applied by useIsomorphicLayoutEffect above.
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduced) {
-      const f = FEATURES[0]
-      setObject(f)
-      // xPercent/yPercent: GSAP owns the centering — keeps it percentage-based
-      // so it's correct on every viewport. Must NOT come from CSS class transform
-      // because GSAP would read the computed pixel matrix instead and bake a
-      // fixed-pixel translation that could mis-centre on font/layout changes.
-      gsap.set(title,   { xPercent: -50, yPercent: -50, opacity: 1 })
-      gsap.set(objWrap, { opacity: 1, scale: 1, xPercent: -50, yPercent: f.riseY })
-      gsap.set(feature, { opacity: 1 })
-      gsap.set(tClosed,  { opacity: 1 })
-      gsap.set(tOpen,    { opacity: 0 })
-      gsap.set(cta,      { opacity: 0 })
-      gsap.set(owlRise,  { y: 0 })        // already in final position — no rise
+      setObject(FEATURES[0])
       return
     }
 
     // ── Animated path ─────────────────────────────────────────────
-    //
-    // xPercent/yPercent on title: GSAP owns the centering as percentages.
-    // This is the equivalent of the old inline `transform: translate(-50%,-50%)`
-    // that GSAP could read as a string and keep as xPercent/yPercent internally.
-    // Now that the CSS migration moved the transform to a CSS class, GSAP would
-    // instead read the computed pixel matrix → stores fixed pixels → forced
-    // getComputedStyle() reads per animation frame → scroll jank.
-    // Explicit xPercent/yPercent here: GSAP reads its own _gsap cache only,
-    // no per-frame layout reads, no jank.
-    gsap.set(title,    { xPercent: -50, yPercent: -50, opacity: 1 })
-    gsap.set(objWrap,  { opacity: 0 })
-    gsap.set(feature,  { opacity: 0 })
-    gsap.set(cta,      { opacity: 0 })
-    gsap.set(tClosed,  { opacity: 1 })
-    gsap.set(tOpen,    { opacity: 0 })
-    // Owl starts 60 px below its resting position — rises as CTA fades in.
-    // opacity is intentionally NOT set here: the parent ctaRef fade handles it.
-    gsap.set(owlRise,  { y: 60 })
+    // Initial states (xPercent/yPercent, opacity, y) were already applied
+    // synchronously in useIsomorphicLayoutEffect — do not repeat gsap.set here.
 
     const ctx = gsap.context(() => {
       // Idle title sway — runs independently, never scrubbed
@@ -253,17 +278,28 @@ export default function ScrollScene() {
       master.to(owlRise, { y: 0, duration: 0.5, ease: 'back.out(1.4)' }, '<0.15')
     })
 
-    // ── Image-load fix: ScrollTrigger must re-measure after all imgs decode ──
+    // ── Post-setup refresh: re-measure after fonts and images settle ──────
     //
-    // Root cause: on first visit (no cache) the <img> elements inside the
-    // fixed stage have zero intrinsic height when gsap.context() runs, so
-    // every yPercent transform is evaluated against 0px.  On reload the
-    // browser returns cached images synchronously so the dimensions are
-    // correct before the effect fires.  Calling ScrollTrigger.refresh()
-    // once every image has loaded forces a full re-measurement of all
-    // trigger start/end pixel positions and re-evaluates percent-based
-    // transforms against the real element heights.
+    // Three independent races all resolved here with a single `refresh` fn:
+    //
+    //   1. document.fonts.ready — custom fonts (Clash Display / Space Grotesk
+    //      at clamp(64px,16vw,200px)) shift element heights when they swap in,
+    //      invalidating every ScrollTrigger start/end pixel position.
+    //
+    //   2. Image load promise — on first visit (no cache) <img> elements have
+    //      zero intrinsic height when gsap.context() runs, so yPercent
+    //      transforms are evaluated against 0 px.  On reload images are
+    //      returned from cache synchronously, masking the race.
+    //
+    //   3. requestAnimationFrame — catches the case where both fonts and images
+    //      were already loaded/resolved before this effect ran (Promise .then
+    //      callbacks are micro-tasks and may fire before layout is stable).
+    //
     let active = true
+    const refresh = () => { if (active) ScrollTrigger.refresh() }
+
+    if (document.fonts?.ready) document.fonts.ready.then(refresh)
+    requestAnimationFrame(refresh)
 
     const imgs = Array.from(
       stageRef.current?.querySelectorAll('img') ?? []
@@ -278,16 +314,13 @@ export default function ScrollScene() {
               img.addEventListener('error', () => res(), { once: true })
             })
       )
-    ).then(() => { if (active) ScrollTrigger.refresh() })
+    ).then(refresh)
 
-    // Safety net: if the Promise.all resolved before layout was stable
-    // (e.g. custom fonts shifted heights) the window load event catches it.
-    const onWindowLoad = () => { if (active) ScrollTrigger.refresh() }
-    window.addEventListener('load', onWindowLoad)
+    window.addEventListener('load', refresh)
 
     return () => {
-      active = false                                   // cancel pending .then()
-      window.removeEventListener('load', onWindowLoad)
+      active = false
+      window.removeEventListener('load', refresh)
       ctx.revert()
     }
   }, [])

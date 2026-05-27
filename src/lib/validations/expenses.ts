@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 const round2dp = (val: number) => Math.round(val * 100) / 100
 
-export const PAYMENT_METHODS = ['cash', 'upi', 'card', 'netbanking', 'other'] as const
+export const PAYMENT_METHODS = ['cash', 'upi', 'card', 'netbanking', 'wallet', 'other'] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
 // Dates come in as strings from datetime-local inputs; actions convert to Date.

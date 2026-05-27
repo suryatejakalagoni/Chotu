@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TopBar } from '@/components/layout/top-bar'
+import { ChotuStage } from '@/components/chotu/ChotuStage'
+import '@/styles/chotu-dashboard.css'
 
 export default async function ProtectedLayout({
   children,
@@ -21,9 +23,10 @@ export default async function ProtectedLayout({
   const userName = profile?.display_name ?? user.email?.split('@')[0] ?? ''
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="chotu-ui min-h-screen bg-background">
       <TopBar isAdmin={isAdmin} userName={userName} />
       {children}
+      <ChotuStage />
     </div>
   )
 }

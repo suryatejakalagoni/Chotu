@@ -1118,7 +1118,8 @@ export type Database = {
     }
     Enums: {
       assignment_status: "not_started" | "in_progress" | "done"
-      exam_status: "upcoming" | "completed" | "cancelled"
+      // TODO: consolidate to one canonical status set — 'completed'/'cancelled' are Day 7 legacy; 'ongoing'/'done'/'missed' are Phase 6 UI values
+      exam_status: "upcoming" | "completed" | "cancelled" | "ongoing" | "done" | "missed"
       priority_level: "low" | "medium" | "high"
       reminder_type: "1_day" | "3_hours" | "morning_of" | "custom" | "1_week" | "3_days" | "1_hour"
       split_status: "pending" | "settled"
@@ -1251,7 +1252,7 @@ export const Constants = {
   public: {
     Enums: {
       assignment_status: ["not_started", "in_progress", "done"],
-      exam_status: ["upcoming", "completed", "cancelled"],
+      exam_status: ["upcoming", "completed", "cancelled", "ongoing", "done", "missed"],
       priority_level: ["low", "medium", "high"],
       reminder_type: ["1_day", "3_hours", "morning_of", "custom", "1_week", "3_days", "1_hour"],
       split_status: ["pending", "settled"],
