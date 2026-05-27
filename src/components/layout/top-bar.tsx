@@ -76,23 +76,8 @@ export function TopBar({ isAdmin = false, userName }: TopBarProps) {
     <>
       <header className="navbar">
         <div className="navbar__content">
-          {/* Brand — always first in DOM; CSS order moves hamburger visually left on mobile */}
+          {/* Brand */}
           <Link href="/dashboard" className="navbar__brand">CHOTU</Link>
-
-          {/* Hamburger — mobile only, visually repositioned to the left via CSS order:-1 */}
-          <button
-            className="navbar__hamburger"
-            onClick={() => setMenuOpen(p => !p)}
-            aria-expanded={menuOpen}
-            aria-label="Open navigation"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              {menuOpen
-                ? <path d="M18 6L6 18M6 6l12 12" />
-                : <path d="M3 6h18M3 12h18M3 18h18" />}
-            </svg>
-          </button>
 
           {/* Wave nav — desktop only */}
           <nav className="navbar__nav">
@@ -158,6 +143,22 @@ export function TopBar({ isAdmin = false, userName }: TopBarProps) {
               )}
             </div>
           </div>
+
+          {/* Hamburger — LAST in DOM so server/client order never shifts.
+              CSS `order: -2` pulls it visually to the left on mobile. */}
+          <button
+            className="navbar__hamburger"
+            onClick={() => setMenuOpen(p => !p)}
+            aria-expanded={menuOpen}
+            aria-label="Open navigation"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              {menuOpen
+                ? <path d="M18 6L6 18M6 6l12 12" />
+                : <path d="M3 6h18M3 12h18M3 18h18" />}
+            </svg>
+          </button>
         </div>
       </header>
 

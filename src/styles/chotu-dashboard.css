@@ -1111,7 +1111,8 @@ html:not(.dark) .rem-custom-input { color-scheme: light; }
    MOBILE NAV — hamburger (LEFT) + full-screen modules overlay
    ============================================================ */
 .navbar__hamburger {
-  display: none; /* shown only inside the mobile media query below */
+  /* hidden everywhere; mobile query switches to flex and repositions via order */
+  display: none;
   align-items: center;
   justify-content: center;
   width: 40px;
@@ -1262,9 +1263,9 @@ html:not(.dark) .rem-custom-input { color-scheme: light; }
 @media (max-width: 767px) {
   .navbar__nav    { display: none; }
   .navbar__right  { display: none; }
-  /* Hamburger is second in DOM (brand is first for stable SSR hydration),
-     order:-1 moves it visually to the leftmost position in the flex row */
-  .navbar__hamburger { display: flex; order: -1; margin-right: 8px; }
+  /* Hamburger is LAST in DOM (stable SSR/client order).
+     order:-2 moves it visually before brand (order:0) on mobile. */
+  .navbar__hamburger { display: flex; order: -2; margin-right: 8px; }
 }
 
 /* ============================================================
