@@ -12,11 +12,19 @@
 }
 
 /* ── Landing feature text — needs responsive media query ────────── */
+/*
+ * NO transform here. GSAP owns the centering via yPercent (desktop) /
+ * xPercent (mobile) set in gsap.set() before the first tween — same
+ * pattern as .lc-title. If transform lives in a CSS class, GSAP reads
+ * it via getComputedStyle() as a pixel matrix on every frame it composes
+ * transforms → forced reflow per scroll event, and the fromTo { x } from-
+ * state overwrites CSS translateX(-50%) on mobile, pushing the element
+ * ~170 px outside the viewport → hard clip from overflow:hidden on .lc-stage.
+ */
 .landing-feature {
   position: absolute;
   top: 50%;
   left: 58%;
-  transform: translateY(-50%);
   z-index: 7;
   text-align: left;
   opacity: 0;
@@ -29,7 +37,6 @@
     left: 50%;
     top: auto;
     bottom: 14%;
-    transform: translateX(-50%);
     text-align: center;
     max-width: 86vw;
   }
@@ -486,7 +493,11 @@
 .lc-stage {
   position: fixed;
   inset: 0;
-  overflow: hidden;
+  /* overflow:hidden removed — it created a hard CSS 2-D clip plane that
+   * cuts 3-D perspective-transformed children (z:260 / scale:1.8 exit)
+   * before they reach opacity:0. position:fixed inset:0 already confines
+   * the stage to the viewport; the browser's hardware viewport clips any
+   * element that genuinely overflows without the CSS artifact. */
   perspective: 1100px;
   perspective-origin: 50% 42%;
   background: linear-gradient(180deg,#fff 0%,#fff 45%,#eceef1 100%);

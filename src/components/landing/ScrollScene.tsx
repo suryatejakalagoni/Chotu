@@ -132,13 +132,31 @@ export default function ScrollScene() {
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+    // .landing-feature centering: GSAP must own the centering transform so that
+    // the fromTo { x } animation never conflicts with a CSS transform on the same
+    // axis (see CLAUDE.md 2026-05-24 entry and the 2026-05-27 clipping fix).
+    //
+    // Desktop: element is anchored top:50% left:58% — we center vertically via
+    //   yPercent:-50 (translateY(-50% of own height)). x-animation is horizontal
+    //   only → no axis conflict.
+    //
+    // Mobile ≤600px: element is anchored left:50% bottom:14% — we center
+    //   horizontally via xPercent:-50 (translateX(-50% of own width)). The
+    //   fromTo also animates x, but GSAP composes xPercent + x additively:
+    //   translateX(-50%) translateX(30px) → slides in while staying centered.
+    //   No axis conflict, no overflow, no clip.
+    const isMobile = window.innerWidth <= 600
+    const featureCenterProps = isMobile
+      ? { xPercent: -50, yPercent: 0 }
+      : { xPercent: 0,   yPercent: -50 }
+
     if (reduced) {
       const f = FEATURES[0]
       // xPercent/yPercent: GSAP owns the centering as percentages — never in CSS
       // (see CLAUDE.md 2026-05-24 entry) so GSAP reads its own _gsap cache only.
       gsap.set(title,   { xPercent: -50, yPercent: -50, opacity: 1 })
       gsap.set(objWrap, { opacity: 1, scale: 1, xPercent: -50, yPercent: f.riseY })
-      gsap.set(feature, { opacity: 1 })
+      gsap.set(feature, { opacity: 1, ...featureCenterProps })
       gsap.set(tClosed, { opacity: 1 })
       gsap.set(tOpen,   { opacity: 0 })
       gsap.set(cta,     { opacity: 0 })
@@ -146,7 +164,7 @@ export default function ScrollScene() {
     } else {
       gsap.set(title,   { xPercent: -50, yPercent: -50, opacity: 1 })
       gsap.set(objWrap, { opacity: 0 })
-      gsap.set(feature, { opacity: 0 })
+      gsap.set(feature, { opacity: 0, ...featureCenterProps })
       gsap.set(cta,     { opacity: 0 })
       gsap.set(tClosed, { opacity: 1 })
       gsap.set(tOpen,   { opacity: 0 })
