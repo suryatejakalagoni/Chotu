@@ -149,6 +149,7 @@ export async function addIncome(raw: unknown): Promise<ActionResult> {
   }
 
   revalidatePath('/expenses/income')
+  revalidatePath('/dashboard')
   return {}
 }
 
@@ -172,6 +173,7 @@ export async function deleteIncome(id: string): Promise<ActionResult> {
   }
 
   revalidatePath('/expenses/income')
+  revalidatePath('/dashboard')
   return {}
 }
 
