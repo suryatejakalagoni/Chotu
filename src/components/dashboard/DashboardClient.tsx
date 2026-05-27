@@ -51,6 +51,8 @@ export type DashboardProps = {
   expenses: DashExpense[]
   posts: DashPost[]
   monthTotal: number
+  monthIncome: number
+  monthBudget: number | null
 }
 
 // ─── constants ──────────────────────────────────────────────────────────────────
@@ -274,12 +276,10 @@ function CommunityCard({ posts }: { posts: DashPost[] }) {
 
 // ─── MonthCard ────────────────────────────────────────────────────────────────
 
-function MonthCard({ monthTotal }: { monthTotal: number }) {
-  const budget = 3000
-  const income = 0
-  const balance = income - monthTotal
-  const pct = budget ? Math.min(100, (monthTotal / budget) * 100) : 0
-  const over = monthTotal > budget
+function MonthCard({ monthTotal, monthIncome, monthBudget }: { monthTotal: number; monthIncome: number; monthBudget: number | null }) {
+  const balance = monthIncome - monthTotal
+  const pct = monthBudget && monthBudget > 0 ? Math.min(100, (monthTotal / monthBudget) * 100) : 0
+  const over = monthBudget !== null && monthTotal > monthBudget
 
   return (
     <div className="month-card">
@@ -290,7 +290,7 @@ function MonthCard({ monthTotal }: { monthTotal: number }) {
       <div className="month-stats">
         <div className="month-stat income">
           <div className="l">Income</div>
-          <div className="v">₹{income}</div>
+          <div className="v">₹{Math.round(monthIncome)}</div>
         </div>
         <div className="month-stat spent">
           <div className="l">Spent</div>
@@ -301,14 +301,15 @@ function MonthCard({ monthTotal }: { monthTotal: number }) {
           <div className="v">₹{Math.round(balance)}</div>
         </div>
       </div>
-      {budget > 0 && (
+      {monthBudget !== null && monthBudget > 0 && (
         <div className="budget-bar-wrap">
           <div className={`budget-bar-fill${over ? ' over' : ''}`} style={{ width: `${pct}%` }} />
         </div>
       )}
       <div className="budget-bar-meta">
-        {budget > 0 ? `Budget ₹${budget} · ${Math.round(pct)}% used` : 'Set a monthly budget to track your limit.'}
-      </div>
+        {monthBudget !== null && monthBudget > 0
+          ? `Budget ₹${monthBudget} · ${Math.round(pct)}% used`
+          : 'Set a monthly budget to track your limit.'}</div>
     </div>
   )
 }
@@ -316,7 +317,7 @@ function MonthCard({ monthTotal }: { monthTotal: number }) {
 // ─── main ─────────────────────────────────────────────────────────────────────
 
 export function DashboardClient({
-  userName, assignments, exams, expenses, posts, monthTotal,
+  userName, assignments, exams, expenses, posts, monthTotal, monthIncome, monthBudget,
 }: DashboardProps) {
   useChotuActions()
   const now = new Date()
@@ -361,7 +362,7 @@ export function DashboardClient({
       </div>
 
       {/* MONTH */}
-      <MonthCard monthTotal={monthTotal} />
+      <MonthCard monthTotal={monthTotal} monthIncome={monthIncome} monthBudget={monthBudget} />
 
       {/* Voice confirmation modal — portal, renders outside main flow */}
       <VoiceModal />

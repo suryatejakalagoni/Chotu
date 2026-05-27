@@ -13,6 +13,7 @@ export default async function DashboardPage() {
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const monthStartDate = monthStart.slice(0, 10) // "YYYY-MM-DD" for budget comparison
   const fourDaysOut = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString()
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -23,6 +24,8 @@ export default async function DashboardPage() {
     { data: expRows },
     { data: monthExpRows },
     { data: postRows },
+    { data: monthIncomeRows },
+    { data: monthBudgetRow },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -70,10 +73,28 @@ export default async function DashboardPage() {
       .gte('created_at', oneWeekAgo)
       .order('created_at', { ascending: false })
       .limit(3),
+
+    // Monthly income total
+    supabase
+      .from('income')
+      .select('amount')
+      .eq('user_id', user.id)
+      .gte('received_at', monthStart),
+
+    // Overall monthly budget (category_id IS NULL = total budget, not per-category)
+    supabase
+      .from('budgets')
+      .select('amount')
+      .eq('user_id', user.id)
+      .is('category_id', null)
+      .eq('starts_at', monthStartDate)
+      .maybeSingle(),
   ])
 
   const userName = profile?.display_name ?? user.email?.split('@')[0] ?? 'there'
   const monthTotal = (monthExpRows ?? []).reduce((s, e) => s + e.amount, 0)
+  const monthIncome = (monthIncomeRows ?? []).reduce((s, r) => s + r.amount, 0)
+  const monthBudget = monthBudgetRow?.amount ?? null
 
   const assignments: DashAssignment[] = (asnRows ?? []).map(r => ({
     id: r.id,
@@ -121,6 +142,8 @@ export default async function DashboardPage() {
       expenses={expenses}
       posts={posts}
       monthTotal={monthTotal}
+      monthIncome={monthIncome}
+      monthBudget={monthBudget}
     />
   )
 }
