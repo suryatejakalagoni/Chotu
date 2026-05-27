@@ -31,7 +31,7 @@ function monthBounds(month: string): { starts_at: string; ends_at: string } {
 
 // ─── expense actions ─────────────────────────────────────────────────────────
 
-export type ActionResult = { error?: string }
+export type ActionResult = { error?: string; id?: string }
 
 export async function addExpense(raw: unknown): Promise<ActionResult> {
   const parsed = expenseSchema.safeParse(raw)
@@ -41,7 +41,7 @@ export async function addExpense(raw: unknown): Promise<ActionResult> {
     const { supabase, user } = await getAuthUser()
     const { title, amount, category_id, spent_at, payment_method, notes } = parsed.data
 
-    const { error } = await supabase.from('expenses').insert({
+    const { data, error } = await supabase.from('expenses').insert({
       user_id: user.id,
       title,
       amount,
@@ -49,18 +49,18 @@ export async function addExpense(raw: unknown): Promise<ActionResult> {
       spent_at: new Date(spent_at).toISOString(),
       payment_method,
       notes: notes ?? null,
-    })
+    }).select('id').single()
 
     if (error) {
       console.error('[addExpense]', error.message)
       return { error: 'Could not save expense. Please try again.' }
     }
+
+    revalidatePath('/expenses')
+    return { id: data.id }
   } catch {
     return { error: 'Not authenticated.' }
   }
-
-  revalidatePath('/expenses')
-  return {}
 }
 
 export async function updateExpense(id: string, raw: unknown): Promise<ActionResult> {

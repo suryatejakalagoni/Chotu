@@ -404,11 +404,15 @@ function ExpRow({ e, catById, onEdit, onDel }: {
 
 // ─── add / edit modal ─────────────────────────────────────────────────────────
 
-function ExpenseModal({ categories, target, onClose, onSave }: {
+function ExpenseModal({ categories, target, onClose, onSave, onError, onIdSwap }: {
   categories: Category[]
   target: ExpenseItem | null
   onClose: () => void
   onSave: (data: Omit<ExpenseItem, 'id'> & { id?: string }) => void
+  /** Called (off main thread) when the background server action fails */
+  onError: (id: string, msg: string) => void
+  /** Called when server confirms the real DB id for an optimistic add */
+  onIdSwap?: (tempId: string, realId: string) => void
 }) {
   const [amount, setAmount] = useState(target ? String(target.amount) : '')
   const [title, setTitle] = useState(target?.title ?? '')
@@ -417,8 +421,6 @@ function ExpenseModal({ categories, target, onClose, onSave }: {
   const [when, setWhen] = useState<'today' | 'yesterday' | 'custom'>('today')
   const [customDate, setCustomDate] = useState('')
   const [notes, setNotes] = useState(target?.notes ?? '')
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -428,7 +430,6 @@ function ExpenseModal({ categories, target, onClose, onSave }: {
 
   async function submit() {
     if (!Number(amount) || !title.trim()) return
-    setSaving(true); setErr(null)
     let spent_at: string
     if (when === 'today') {
       spent_at = new Date().toISOString()
@@ -446,12 +447,25 @@ function ExpenseModal({ categories, target, onClose, onSave }: {
       spent_at,
       notes: notes.trim() || null,
     }
-    const result = target
-      ? await updateExpense(target.id, { ...payload, spent_at: payload.spent_at })
-      : await addExpense({ ...payload, spent_at: payload.spent_at })
-    if (result.error) { setErr(result.error); setSaving(false); return }
-    onSave({ ...payload, ...(target ? { id: target.id } : {}) })
+
+    // ── Optimistic: update UI immediately, server action runs in background ──
+    const isAdd = !target
+    const optimisticId = isAdd ? ('tmp_' + Date.now()) : target.id
+    onSave({ ...payload, id: optimisticId })
     onClose()
+
+    // Background persist — no await, UI is already updated
+    void (async () => {
+      const result = isAdd
+        ? await addExpense({ ...payload })
+        : await updateExpense(target.id, { ...payload })
+      if (result.error) {
+        onError(optimisticId, result.error)
+        return
+      }
+      // Swap temp ID for real DB id on successful add
+      if (isAdd && result.id) onIdSwap?.(optimisticId, result.id)
+    })()
   }
 
   const validCats = categories.filter(c => c.type === 'expense' || !c.type)
@@ -483,7 +497,6 @@ function ExpenseModal({ categories, target, onClose, onSave }: {
         </div>
 
         <div className="body">
-          {err && <div style={{ color: 'var(--danger,#ef4444)', fontSize: 13, marginBottom: 8 }}>{err}</div>}
 
           <div className="field">
             <label>What for?</label>
@@ -548,11 +561,11 @@ function ExpenseModal({ categories, target, onClose, onSave }: {
         </div>
 
         <div className="footer">
-          <button className="btn-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn-cancel" onClick={onClose}>Cancel</button>
           <button className="btn-save"
-            disabled={!Number(amount) || !title.trim() || saving}
+            disabled={!Number(amount) || !title.trim()}
             onClick={submit}>
-            {saving ? 'Saving…' : target ? `Update ${amount ? fmtMoney(Number(amount)) : ''}` : `Save ${amount && title ? fmtMoney(Number(amount)) : 'expense'}`}
+            {target ? `Update ${amount ? fmtMoney(Number(amount)) : ''}` : `Save ${amount && title ? fmtMoney(Number(amount)) : 'expense'}`}
           </button>
         </div>
       </div>
@@ -585,6 +598,8 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
   const [expenses, setExpenses] = useState<ExpenseItem[]>(initialExpenses)
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ExpenseItem | null>(null)
+  // Snapshot held across the async background action so we can roll back on error
+  const editSnapshotRef = useRef<ExpenseItem | null>(null)
   const [filterCat, setFilterCat] = useState<string | null>(null)
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth())
   const [search, setSearch] = useState('')
@@ -714,6 +729,8 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
 
   const handleEdit = (data: Omit<ExpenseItem, 'id'> & { id?: string }) => {
     if (!data.id) return
+    // Capture snapshot before overwriting — used by handleServerError for edit rollback
+    editSnapshotRef.current = expenses.find(e => e.id === data.id) ?? null
     setExpenses(p => p.map(e => e.id === data.id ? { ...e, ...data, id: data.id! } : e))
     toast('Updated expense')
     chotu?.react('happy', 'updated!')
@@ -729,6 +746,27 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
       if (prev) setExpenses(p => [prev, ...p])
       toast(result.error ?? 'Could not delete', 'error')
     }
+  }
+
+  // ── background-action error rollback ─────────────────────────────────────
+
+  const handleServerError = (id: string, msg: string) => {
+    if (id.startsWith('tmp_')) {
+      // Optimistic add failed — remove the temporary item
+      setExpenses(p => p.filter(e => e.id !== id))
+    } else {
+      // Optimistic edit failed — restore the snapshot captured before editing
+      const snap = editSnapshotRef.current
+      if (snap && snap.id === id) {
+        setExpenses(p => p.map(e => e.id === id ? snap : e))
+        editSnapshotRef.current = null
+      }
+    }
+    toast(msg, 'error')
+  }
+
+  const handleIdSwap = (tempId: string, realId: string) => {
+    setExpenses(p => p.map(e => e.id === tempId ? { ...e, id: realId } : e))
   }
 
   const monthName = _FMT_MONTH_LONG.format(new Date(2024, filterMonth, 1))
@@ -986,6 +1024,8 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
           target={editTarget}
           onClose={() => { setAddOpen(false); setEditTarget(null) }}
           onSave={editTarget ? handleEdit : handleAdd}
+          onError={handleServerError}
+          onIdSwap={handleIdSwap}
         />
       )}
 

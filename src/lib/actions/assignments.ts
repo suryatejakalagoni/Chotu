@@ -13,7 +13,7 @@ import {
   deleteAssignmentRemindersFromCalendar,
 } from '@/lib/actions/google-calendar'
 
-export type ActionResult = { error?: string }
+export type ActionResult = { error?: string; id?: string }
 
 async function getAuthUser() {
   const supabase = await createClient()
@@ -98,7 +98,7 @@ export async function createAssignment(
     )
 
     revalidatePath('/assignments')
-    return {}
+    return { id: inserted.id }
   } catch {
     return { error: 'Not authenticated.' }
   }

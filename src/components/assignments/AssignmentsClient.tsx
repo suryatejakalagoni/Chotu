@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { ChotuOwl } from '@/components/chotu/ChotuOwl'
 import { useChotuActions } from '@/components/chotu/ChotuStage'
 import { createAssignment, updateAssignment, deleteAssignment } from '@/lib/actions/assignments'
@@ -284,9 +284,11 @@ function AsnRow({ a, onStatus, onDel, onProgress }: {
 
 // ─── add assignment modal ─────────────────────────────────────────────────────
 
-function AddAssignmentModal({ onClose, onSave }: {
+function AddAssignmentModal({ onClose, onSave, onError, onIdSwap }: {
   onClose: () => void
   onSave: (a: AssignmentItem) => void
+  onError: (id: string, msg: string) => void
+  onIdSwap?: (tempId: string, realId: string) => void
 }) {
   const [extraSubjects, setExtraSubjects] = useState<Record<string, { color: string; glyph: string; soft: string }>>({})
   const allSubjects = { ...extraSubjects }
@@ -299,8 +301,6 @@ function AddAssignmentModal({ onClose, onSave }: {
   const [customDate, setCustomDate] = useState('')
   const [est, setEst] = useState(60)
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -324,9 +324,8 @@ function AddAssignmentModal({ onClose, onSave }: {
     setSubject(n); setAddingSubj(false); setNewSubjName('')
   }
 
-  async function submit() {
+  function submit() {
     if (!title.trim() || !subject) return
-    setSaving(true); setErr(null)
     const raw = {
       subject,
       title: title.trim(),
@@ -337,10 +336,10 @@ function AddAssignmentModal({ onClose, onSave }: {
       priority,
       is_recurring: false,
     }
-    const result = await createAssignment(raw)
-    if (result.error) { setErr(result.error); setSaving(false); return }
-    onSave({
-      id: 'tmp_' + Date.now(),
+    // ── Optimistic: update UI immediately ────────────────────────────────────
+    const tempId = 'tmp_' + Date.now()
+    const optimisticItem: AssignmentItem = {
+      id: tempId,
       subject, title: raw.title,
       description: description.trim() || null,
       due_at: dueIso,
@@ -349,8 +348,16 @@ function AddAssignmentModal({ onClose, onSave }: {
       priority,
       progress: 0,
       archived_at: null,
-    })
+    }
+    onSave(optimisticItem)
     onClose()
+
+    // Background persist
+    void (async () => {
+      const result = await createAssignment(raw)
+      if (result.error) { onError(tempId, result.error); return }
+      if (result.id) onIdSwap?.(tempId, result.id)
+    })()
   }
 
   return (
@@ -364,7 +371,6 @@ function AddAssignmentModal({ onClose, onSave }: {
           <h3 className="asn-h">Add to your <span className="hl">to-do</span>.</h3>
         </div>
         <div className="body">
-          {err && <div style={{ color: 'var(--danger,#ef4444)', fontSize: 13, marginBottom: 8 }}>{err}</div>}
 
           <div className="field">
             <label>Subject</label>
@@ -465,9 +471,9 @@ function AddAssignmentModal({ onClose, onSave }: {
         </div>
 
         <div className="footer">
-          <button className="btn-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn-save" disabled={!title.trim() || !subject || saving} onClick={submit}>
-            {saving ? 'Saving…' : 'Save assignment'}
+          <button className="btn-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn-save" disabled={!title.trim() || !subject} onClick={submit}>
+            Save assignment
           </button>
         </div>
       </div>
@@ -594,12 +600,37 @@ export function AssignmentsClient({ initialAssignments }: { initialAssignments: 
     await updateAssignment({ id, status })
   }
 
+  // Debounce timer for progress persistence — drag fires many events,
+  // we only want to hit the server ~600ms after the user stops dragging.
+  const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const handleProgress = (id: string, p: number) => {
     setItems(items => items.map(a => a.id === id
       ? { ...a, progress: p, status: p >= 100 ? 'done' : 'in_progress' }
       : a
     ))
     if (p >= 100) chotu?.celebrate('done!')
+
+    // Debounced persist with rollback on failure
+    if (progressTimerRef.current) clearTimeout(progressTimerRef.current)
+    const prevItem = items.find(a => a.id === id)
+    progressTimerRef.current = setTimeout(async () => {
+      const result = await updateAssignment({ id, progress: p, status: p >= 100 ? 'done' : 'in_progress' })
+      if (result.error) {
+        // Restore previous progress on failure
+        if (prevItem) setItems(curr => curr.map(a => a.id === id ? prevItem : a))
+        toast('Progress not saved — try again', 'error')
+      }
+    }, 600)
+  }
+
+  const handleServerError = (id: string, msg: string) => {
+    setItems(p => p.filter(a => a.id !== id))
+    toast(msg, 'error')
+  }
+
+  const handleIdSwap = (tempId: string, realId: string) => {
+    setItems(p => p.map(a => a.id === tempId ? { ...a, id: realId } : a))
   }
 
   const handleDel = async (id: string) => {
@@ -803,7 +834,14 @@ export function AssignmentsClient({ initialAssignments }: { initialAssignments: 
         </section>
       </main>
 
-      {addOpen && <AddAssignmentModal onClose={() => setAddOpen(false)} onSave={handleAdd} />}
+      {addOpen && (
+        <AddAssignmentModal
+          onClose={() => setAddOpen(false)}
+          onSave={handleAdd}
+          onError={handleServerError}
+          onIdSwap={handleIdSwap}
+        />
+      )}
       <Toasts toasts={toasts} />
     </>
   )
