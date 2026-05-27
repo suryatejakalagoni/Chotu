@@ -168,9 +168,11 @@ export function PostForm() {
       setFileError('File type not allowed. (PDF, PNG, JPG, WebP, GIF, DOCX, XLSX, PPTX, TXT)')
       return
     }
-    // Size cap — server is the real gate; client check is UX only
-    if (f.size > MAX_COMMUNITY_FILE_SIZE) {
-      setFileError(`File exceeds 10 MB limit (${fmtBytes(f.size)})`)
+    // For compressible types (images, PDFs), allow large originals — compression
+    // will shrink them before upload. For everything else, cap at server limit.
+    const isCompressible = COMPRESSIBLE_IMAGE_TYPES.has(f.type) || f.type === 'application/pdf'
+    if (!isCompressible && f.size > MAX_COMMUNITY_FILE_SIZE) {
+      setFileError(`File too large (${fmtBytes(f.size)}). Max 10 MB for DOCX, XLSX, PPTX, TXT.`)
       return
     }
 
@@ -308,7 +310,7 @@ export function PostForm() {
         </div>
       ) : (
         <div className="space-y-1">
-          <Label>File * (PDF, PNG, JPG, WebP, GIF, DOCX, XLSX, PPTX, TXT · max 10 MB)</Label>
+          <Label>File * (PDF, PNG, JPG, WebP, GIF, DOCX, XLSX, PPTX, TXT)</Label>
           <input
             ref={fileRef}
             type="file"
