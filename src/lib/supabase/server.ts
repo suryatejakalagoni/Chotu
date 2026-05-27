@@ -15,16 +15,17 @@ export async function createClient() {
         setAll(toSet) {
           try {
             toSet.forEach(({ name, value, options }) =>
+              // Use Supabase's options as-is (SameSite=Lax, Secure in prod).
+              // Do NOT add httpOnly:true — createBrowserClient uses document.cookie and
+              // must be able to read/write the same tokens. httpOnly would cause a
+              // cookie name collision and break the OTP session handoff.
               cookieStore.set(name, value, {
                 ...options,
-                httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
-                // SameSite=Lax (Supabase default) is required for OAuth redirects.
-                // Strict blocks the code-verifier cookie on cross-site navigations.
               })
             );
           } catch {
-            // Called from a Server Component — cookies can't be set, middleware handles refresh
+            // Server Component context — middleware handles refresh
           }
         },
       },

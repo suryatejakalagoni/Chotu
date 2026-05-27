@@ -84,3 +84,11 @@ export type UpdatePasswordState =
       success?: boolean
     }
   | undefined
+
+export type VerifyOtpState =
+  | {
+      message?: string
+      locked?: boolean
+      success?: boolean
+    }
+  | undefined

@@ -13,6 +13,7 @@ import {
   type LoginFormState,
   type ForgotPasswordState,
   type UpdatePasswordState,
+  type VerifyOtpState,
 } from '@/lib/validations/auth'
 
 const RATE_LIMIT_MAX = 5
@@ -169,8 +170,7 @@ export async function requestPasswordReset(
 
   const allowed = await checkRateLimit(`pwreset:${ip}`)
   if (!allowed) {
-    // Neutral message — same as success to prevent timing enumeration
-    return { success: true }
+    return { success: true } // neutral — never reveal rate-limit to prevent enumeration
   }
 
   const validated = ForgotPasswordEmailSchema.safeParse({
@@ -184,13 +184,73 @@ export async function requestPasswordReset(
   const { email } = validated.data
   const supabase = await createClient()
 
-  // Call regardless of whether account exists — never leak account existence.
-  await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
+  // resetPasswordForEmail sends a recovery OTP ({{ .Token }} in the email template).
+  // Only sends if the account exists — never leaks account existence.
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
   })
 
   return { success: true }
+}
+
+export async function resendPasswordReset(
+  _prevState: ForgotPasswordState,
+  formData: FormData
+): Promise<ForgotPasswordState> {
+  const ip = await getClientIp()
+
+  const allowed = await checkRateLimit(`pwreset:${ip}`)
+  if (!allowed) {
+    return { success: true }
+  }
+
+  const email = String(formData.get('email') ?? '').trim()
+  const parsed = ForgotPasswordEmailSchema.safeParse({ email })
+  if (!parsed.success) return { success: true }
+
+  const supabase = await createClient()
+  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+  })
+
+  return { success: true }
+}
+
+export async function verifyResetOtp(
+  _prevState: VerifyOtpState,
+  formData: FormData
+): Promise<VerifyOtpState> {
+  const ip = await getClientIp()
+
+  const allowed = await checkRateLimit(`otp_verify:${ip}`)
+  if (!allowed) {
+    return { locked: true, message: 'Too many attempts. Please wait 15 minutes.' }
+  }
+
+  const email = String(formData.get('email') ?? '').trim()
+  const token = String(formData.get('token') ?? '').replace(/\D/g, '')
+
+  if (!email || token.length !== 6) {
+    return { message: 'Something went wrong. Please start over.' }
+  }
+
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'recovery',
+    })
+
+    if (error) {
+      console.error('[verifyResetOtp]', error.message)
+      return { message: 'That code didn\'t match. Check your email and try again.' }
+    }
+
+    return { success: true }
+  } catch {
+    return { message: 'Something went wrong. Please try again.' }
+  }
 }
 
 export async function updatePassword(

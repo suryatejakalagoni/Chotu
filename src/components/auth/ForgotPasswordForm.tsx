@@ -1,15 +1,29 @@
 'use client'
 
-import { useState, useEffect, useRef, useActionState } from 'react'
+import { useState, useEffect, useRef, useActionState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { requestPasswordReset, updatePassword } from '@/lib/actions/auth'
-import type { ForgotPasswordState, UpdatePasswordState } from '@/lib/validations/auth'
+import {
+  requestPasswordReset,
+  resendPasswordReset,
+  verifyResetOtp,
+  updatePassword,
+} from '@/lib/actions/auth'
+import type {
+  ForgotPasswordState,
+  VerifyOtpState,
+  UpdatePasswordState,
+} from '@/lib/validations/auth'
 import { useOwlState } from '@/components/auth/OwlContext'
 import { GalaxyButton } from '@/components/auth/GalaxyButton'
 import { GalaxyWipe } from '@/components/auth/GalaxyWipe'
 
-const OTP_MAX_ATTEMPTS = 5
+const RESEND_COOLDOWN_S = 60
+
+function maskEmail(email: string): string {
+  const at = email.indexOf('@')
+  if (at <= 0) return email
+  return email[0] + '•••' + email.slice(at)
+}
 
 const inputClass =
   'mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors'
@@ -55,21 +69,24 @@ export default function ForgotPasswordForm() {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [emailInput, setEmailInput] = useState('')
   const [otp, setOtp] = useState('')
-  const [otpAttempts, setOtpAttempts] = useState(0)
-  const [otpError, setOtpError] = useState<string | null>(null)
-  const [otpPending, setOtpPending] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [pwError, setPwError] = useState<string | null>(null)
   const [wipeActive, setWipeActive] = useState(false)
   const [wipeOrigin, setWipeOrigin] = useState({ x: 0, y: 0 })
+  const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_S)
   const wipeArmedRef = useRef(false)
   const btnWrapperRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { setOwlState } = useOwlState()
+  const [resendPending, startResendTransition] = useTransition()
 
   const [step1State, step1Action, step1Pending] = useActionState<ForgotPasswordState, FormData>(
     requestPasswordReset,
+    undefined
+  )
+  const [step2State, step2Action, step2Pending] = useActionState<VerifyOtpState, FormData>(
+    verifyResetOtp,
     undefined
   )
   const [step3State, step3Action, step3Pending] = useActionState<UpdatePasswordState, FormData>(
@@ -82,7 +99,15 @@ export default function ForgotPasswordForm() {
     if (step1State?.success && step === 1) setStep(2)
   }, [step1State]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Step 3 message → local error
+  // Step 2 → step 3
+  useEffect(() => {
+    if (step2State?.success && step === 2) {
+      setOtp('')
+      setStep(3)
+    }
+  }, [step2State]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step 3 error → local message
   useEffect(() => {
     setPwError(step3State?.message ?? null)
   }, [step3State])
@@ -99,45 +124,28 @@ export default function ForgotPasswordForm() {
     setWipeActive(true)
   }, [step3State])
 
-  const otpLocked = otpAttempts >= OTP_MAX_ATTEMPTS
-
-  const handleOtpVerify = async () => {
-    if (otpLocked || otpPending || otp.length !== 6) return
-    setOtpError(null)
-    setOtpPending(true)
-
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.verifyOtp({
-        email: emailInput,
-        token: otp,
-        type: 'email',
+  // Resend countdown — starts/restarts whenever step becomes 2
+  useEffect(() => {
+    if (step !== 2) return
+    setResendCooldown(RESEND_COOLDOWN_S)
+    const id = setInterval(() => {
+      setResendCooldown((c) => {
+        if (c <= 1) { clearInterval(id); return 0 }
+        return c - 1
       })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [step])
 
-      if (error) {
-        const next = otpAttempts + 1
-        setOtpAttempts(next)
-        if (next >= OTP_MAX_ATTEMPTS) {
-          setOtpError('Too many incorrect attempts. Please request a new code.')
-        } else {
-          const rem = OTP_MAX_ATTEMPTS - next
-          setOtpError(`Incorrect code. ${rem} attempt${rem === 1 ? '' : 's'} remaining.`)
-        }
-      } else {
-        setStep(3)
-      }
-    } catch {
-      setOtpError('Something went wrong. Please try again.')
-    } finally {
-      setOtpPending(false)
-    }
-  }
-
-  const handleBackToEmail = () => {
-    setStep(1)
-    setOtp('')
-    setOtpAttempts(0)
-    setOtpError(null)
+  const handleResend = () => {
+    if (resendPending || resendCooldown > 0) return
+    const fd = new FormData()
+    fd.append('email', emailInput)
+    startResendTransition(async () => {
+      await resendPasswordReset(undefined, fd)
+      setResendCooldown(RESEND_COOLDOWN_S)
+      setOtp('')
+    })
   }
 
   // ─── Step 1: Email ────────────────────────────────────────────────────────────
@@ -183,21 +191,27 @@ export default function ForgotPasswordForm() {
     )
   }
 
-  // ─── Step 2: OTP ─────────────────────────────────────────────────────────────
+  // ─── Step 2: OTP entry ────────────────────────────────────────────────────────
 
   if (step === 2) {
+    const isLocked = step2State?.locked === true
+
     return (
       <div className="space-y-6">
         <p className="text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
-          Check <strong style={{ color: '#16181d' }}>{emailInput}</strong> for a 6-digit code.
-          It may take a minute.
+          Sent to <strong style={{ color: '#16181d' }}>{maskEmail(emailInput)}</strong>.
+          Enter the 6-digit code from the email.
         </p>
 
-        <div className="space-y-4">
+        <form action={step2Action} className="space-y-4">
+          {/* email is passed through as hidden — needed server-side for verifyOtp */}
+          <input type="hidden" name="email" value={emailInput} />
+
           <div>
             <label htmlFor="otp" style={labelStyle}>6-digit code</label>
             <input
               id="otp"
+              name="token"
               type="text"
               inputMode="numeric"
               pattern="\d{6}"
@@ -205,45 +219,73 @@ export default function ForgotPasswordForm() {
               autoComplete="one-time-code"
               autoFocus
               value={otp}
-              onChange={(e) => {
-                setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
-                setOtpError(null)
-              }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleOtpVerify() }}
-              disabled={otpLocked || otpPending}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              disabled={isLocked || step2Pending}
               placeholder="000000"
               className={`${inputClass} text-center font-mono tracking-[0.4em] text-base`}
               style={{ ...inputStyle, ...inputFocusStyle }}
             />
-            {otpError && (
-              <p role="alert" className="mt-1 text-xs" style={{ color: '#dc2626' }}>{otpError}</p>
+            {step2State?.message && (
+              <p role="alert" className="mt-1 text-xs" style={{ color: '#dc2626' }}>
+                {step2State.message}
+              </p>
             )}
           </div>
 
-          <div ref={btnWrapperRef}>
+          <button
+            type="submit"
+            disabled={isLocked || step2Pending || otp.length !== 6}
+            className="w-full rounded-lg py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
+            style={{ background: '#1a1a1a', color: '#fff' }}
+          >
+            {step2Pending ? 'Verifying…' : 'Verify code'}
+          </button>
+        </form>
+
+        {!isLocked && (
+          <div className="flex items-center justify-between text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
             <button
               type="button"
-              onClick={handleOtpVerify}
-              disabled={otpLocked || otpPending || otp.length !== 6}
-              className="w-full rounded-lg py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
-              style={{ background: '#1a1a1a', color: '#fff' }}
+              onClick={() => { setStep(1); setOtp('') }}
+              className="hover:underline"
+              style={{ color: '#16181d', fontWeight: 500 }}
             >
-              {otpPending ? 'Verifying…' : 'Verify code'}
+              Wrong email?
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resendCooldown > 0 || resendPending}
+              className="hover:underline disabled:cursor-default disabled:no-underline"
+              style={{
+                color: resendCooldown > 0 || resendPending ? 'rgba(22,24,29,0.4)' : '#16181d',
+                fontWeight: 500,
+              }}
+            >
+              {resendPending
+                ? 'Sending…'
+                : resendCooldown > 0
+                  ? `Resend in ${resendCooldown}s`
+                  : 'Resend code'}
             </button>
           </div>
-        </div>
+        )}
 
-        <p className="text-center text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
-          Wrong email or need a new code?{' '}
-          <button
-            type="button"
-            onClick={handleBackToEmail}
-            className="font-semibold hover:underline"
-            style={{ color: '#16181d' }}
-          >
-            Go back
-          </button>
-        </p>
+        {isLocked && (
+          <p className="text-center text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
+            Come back in 15 minutes, then{' '}
+            <button
+              type="button"
+              onClick={() => { setStep(1); setOtp('') }}
+              className="font-semibold hover:underline"
+              style={{ color: '#16181d' }}
+            >
+              try again
+            </button>
+            .
+          </p>
+        )}
       </div>
     )
   }
