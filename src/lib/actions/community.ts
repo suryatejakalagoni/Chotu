@@ -11,7 +11,9 @@ import {
   commentUpdateSchema,
   reportSchema,
   feedParamsSchema,
-  ALLOWED_COMMUNITY_EXTENSIONS,
+  ALLOWED_COMMUNITY_MIMES,
+  BLOCKED_EXTENSIONS,
+  checkMagicBytes,
   PAGE_SIZE,
 } from '@/lib/validations/community'
 import {
@@ -23,6 +25,28 @@ import type { PostWithMeta, CommentWithReplies, ReportWithTarget } from '@/types
 
 const BUCKET = 'community-files'
 const SIGNED_URL_TTL = 60 * 60 // 1 hour
+
+// Derive a safe extension from the validated MIME type — never trust user-supplied name.
+function mimeToExt(mime: string): string {
+  const map: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png':  'png',
+    'image/webp': 'webp',
+    'image/gif':  'gif',
+    'application/pdf': 'pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':  'docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':        'xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'text/plain': 'txt',
+  }
+  return map[mime] ?? 'bin'
+}
+
+// Returns true if this MIME type should always be downloaded rather than rendered.
+function shouldForceDownload(mime: string): boolean {
+  return mime !== 'image/jpeg' && mime !== 'image/png' &&
+         mime !== 'image/webp' && mime !== 'image/gif'
+}
 
 // ── Auth helper ───────────────────────────────────────────────
 
@@ -55,12 +79,19 @@ type UploadUrlResult =
 
 export async function getCommunityUploadUrl(raw: unknown): Promise<UploadUrlResult> {
   const parsed = communityFileMeta.safeParse(raw)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid file' }
+  if (!parsed.success) return { error: 'File type not allowed.' }
 
   const meta = parsed.data
-  const ext = meta.file_name.split('.').pop()?.toLowerCase() ?? ''
-  if (!ALLOWED_COMMUNITY_EXTENSIONS.includes(`.${ext}` as typeof ALLOWED_COMMUNITY_EXTENSIONS[number])) {
-    return { error: 'File extension not allowed' }
+
+  // Explicit block check on declared filename extension (defense-in-depth)
+  const declaredExt = `.${meta.file_name.split('.').pop()?.toLowerCase() ?? ''}`
+  if (BLOCKED_EXTENSIONS.includes(declaredExt as typeof BLOCKED_EXTENSIONS[number])) {
+    return { error: 'File type not allowed.' }
+  }
+
+  // Confirm MIME is on the allowlist (redundant with zod enum, belt-and-suspenders)
+  if (!ALLOWED_COMMUNITY_MIMES.includes(meta.mime_type as typeof ALLOWED_COMMUNITY_MIMES[number])) {
+    return { error: 'File type not allowed.' }
   }
 
   try {
@@ -69,7 +100,10 @@ export async function getCommunityUploadUrl(raw: unknown): Promise<UploadUrlResu
     const allowed = await checkRateLimit(uploadRateLimitKey(user.id), 5, 60_000)
     if (!allowed) return { error: 'Too many uploads. Wait a minute.' }
 
+    // Extension is derived from the validated MIME type — never from user-supplied filename.
+    const ext = mimeToExt(meta.mime_type)
     const storagePath = `${user.id}/${crypto.randomUUID()}.${ext}`
+
     const { data, error } = await supabase.storage
       .from(BUCKET)
       .createSignedUploadUrl(storagePath)
@@ -135,22 +169,70 @@ export async function createCommunityPost(raw: unknown): Promise<CreatePostResul
   }
 }
 
-// ── Set storage key after file upload completes ───────────────
-export async function setCommunityPostStorageKey(
+// ── Verify uploaded file (magic bytes) then link to post ─────
+// Replaces the old setCommunityPostStorageKey — this version fetches the first
+// 16 bytes of the stored object via a short-lived signed URL and checks them
+// against the expected magic bytes before committing the storage_key to the DB.
+// If the check fails the object is deleted from storage and an error is returned.
+export async function verifyAndLinkCommunityFile(
   postId: string,
-  storageKey: string
+  storagePath: string,
+  mimeType: string,
 ): Promise<{ error?: string }> {
   try {
     const { supabase, user } = await getAuthUser()
-    const { error } = await supabase
+
+    // Confirm post belongs to the authenticated user (RLS also enforces this)
+    const { data: post } = await supabase
       .from('community_posts')
-      .update({ storage_key: storageKey })
+      .select('id')
       .eq('id', postId)
       .eq('user_id', user.id)
-    if (error) {
-      console.error('[setCommunityPostStorageKey]', error.message)
+      .single()
+    if (!post) {
+      await supabase.storage.from(BUCKET).remove([storagePath])
+      return { error: 'Post not found.' }
+    }
+
+    // Generate a 20-second signed URL just for reading the magic bytes
+    const { data: signed, error: signErr } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(storagePath, 20)
+    if (signErr || !signed) {
+      await supabase.storage.from(BUCKET).remove([storagePath])
+      console.error('[verifyAndLinkCommunityFile] sign error', signErr?.message)
+      return { error: 'Could not verify file.' }
+    }
+
+    // Fetch first 16 bytes via Range header — sufficient for all magic byte patterns
+    let magicOk = false
+    try {
+      const res = await fetch(signed.signedUrl, { headers: { Range: 'bytes=0-15' } })
+      if (res.ok || res.status === 206) {
+        const buf = new Uint8Array(await res.arrayBuffer())
+        magicOk = checkMagicBytes(buf, mimeType)
+      }
+    } catch (err) {
+      console.error('[verifyAndLinkCommunityFile] fetch error', err)
+    }
+
+    if (!magicOk) {
+      await supabase.storage.from(BUCKET).remove([storagePath])
+      console.error('[verifyAndLinkCommunityFile] magic bytes mismatch', { storagePath, mimeType })
+      return { error: 'File validation failed. Upload rejected.' }
+    }
+
+    // Commit the storage key
+    const { error: updateErr } = await supabase
+      .from('community_posts')
+      .update({ storage_key: storagePath })
+      .eq('id', postId)
+      .eq('user_id', user.id)
+    if (updateErr) {
+      console.error('[verifyAndLinkCommunityFile] DB error', updateErr.message)
       return { error: 'Could not save file link.' }
     }
+
     revalidatePath('/community')
     return {}
   } catch {
@@ -374,9 +456,26 @@ export async function getCommunityFileUrl(postId: string): Promise<DownloadResul
       .single()
     if (!post?.storage_key) return { error: 'File not found.' }
 
+    // Derive MIME from the stored extension — never trust DB-stored user-reported type.
+    const storedExt = post.storage_key.split('.').pop()?.toLowerCase() ?? ''
+    const extToMime: Record<string, string> = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+      webp: 'image/webp', gif: 'image/gif',
+      pdf: 'application/pdf', txt: 'text/plain',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    }
+    const mime = extToMime[storedExt] ?? 'application/octet-stream'
+
     const { data, error } = await supabase.storage
       .from(BUCKET)
-      .createSignedUrl(post.storage_key, SIGNED_URL_TTL)
+      .createSignedUrl(post.storage_key, SIGNED_URL_TTL, {
+        // Force download (Content-Disposition: attachment) for all non-image types.
+        // Images may render inline — they cannot execute in-browser.
+        // PDFs, docs, and text files are forced to download to prevent in-browser execution.
+        download: shouldForceDownload(mime),
+      })
     if (error || !data) return { error: 'Could not generate download link.' }
 
     // Atomic increment via RPC (fire-and-forget, failure is non-fatal)
