@@ -74,6 +74,7 @@ export default function ForgotPasswordForm() {
   const [pwError, setPwError] = useState<string | null>(null)
   const [wipeActive, setWipeActive] = useState(false)
   const [wipeOrigin, setWipeOrigin] = useState({ x: 0, y: 0 })
+  const [showSuccess, setShowSuccess] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_S)
   const wipeArmedRef = useRef(false)
   const btnWrapperRef = useRef<HTMLDivElement>(null)
@@ -112,17 +113,26 @@ export default function ForgotPasswordForm() {
     setPwError(step3State?.message ?? null)
   }, [step3State])
 
-  // Step 3 success → GalaxyWipe → dashboard
+  // Step 3 success → show winking owl + message → GalaxyWipe after 1.8 s
   useEffect(() => {
     if (!step3State?.success || wipeArmedRef.current) return
     wipeArmedRef.current = true
+    setShowSuccess(true)
+    setOwlState('wink')
     const rect = btnWrapperRef.current?.getBoundingClientRect()
     setWipeOrigin({
       x: rect && rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2,
       y: rect && rect.height > 0 ? rect.top + rect.height / 2 : window.innerHeight / 2,
     })
-    setWipeActive(true)
-  }, [step3State])
+    const t = setTimeout(() => setWipeActive(true), 1800)
+    return () => clearTimeout(t)
+  }, [step3State]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step 2 owl state — watching by default, sympathetic on error
+  useEffect(() => {
+    if (step !== 2) return
+    setOwlState(step2State?.message ? 'sympathetic' : 'watching')
+  }, [step, step2State?.message]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resend countdown — starts/restarts whenever step becomes 2
   useEffect(() => {
@@ -146,6 +156,12 @@ export default function ForgotPasswordForm() {
       setResendCooldown(RESEND_COOLDOWN_S)
       setOtp('')
     })
+  }
+
+  const handleBackToStep1 = () => {
+    setStep(1)
+    setOtp('')
+    setOwlState('idle')
   }
 
   // ─── Step 1: Email ────────────────────────────────────────────────────────────
@@ -195,16 +211,32 @@ export default function ForgotPasswordForm() {
 
   if (step === 2) {
     const isLocked = step2State?.locked === true
+    const hasError = Boolean(step2State?.message) && !isLocked
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
+        {/* Personality callout — switches to sympathetic message on wrong OTP */}
+        <p
+          role={hasError ? 'alert' : undefined}
+          className="text-center text-xs"
+          style={{
+            color: hasError ? 'rgba(22,24,29,0.7)' : 'rgba(22,24,29,0.42)',
+            fontStyle: hasError ? 'normal' : 'italic',
+            letterSpacing: hasError ? 'normal' : '0.01em',
+          }}
+        >
+          {hasError
+            ? "That code didn't match. Want me to send a fresh one?"
+            : "Check your inbox. I'm watching the clock 👀"}
+        </p>
+
         <p className="text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
           Sent to <strong style={{ color: '#16181d' }}>{maskEmail(emailInput)}</strong>.
           Enter the 6-digit code from the email.
         </p>
 
         <form action={step2Action} className="space-y-4">
-          {/* email is passed through as hidden — needed server-side for verifyOtp */}
+          {/* email passed through as hidden — needed server-side for verifyOtp */}
           <input type="hidden" name="email" value={emailInput} />
 
           <div>
@@ -223,13 +255,12 @@ export default function ForgotPasswordForm() {
               disabled={isLocked || step2Pending}
               placeholder="000000"
               className={`${inputClass} text-center font-mono tracking-[0.4em] text-base`}
-              style={{ ...inputStyle, ...inputFocusStyle }}
+              style={{
+                ...inputStyle,
+                ...inputFocusStyle,
+                borderColor: hasError ? 'rgba(220,38,38,0.4)' : 'rgba(0,0,0,0.2)',
+              }}
             />
-            {step2State?.message && (
-              <p role="alert" className="mt-1 text-xs" style={{ color: '#dc2626' }}>
-                {step2State.message}
-              </p>
-            )}
           </div>
 
           <button
@@ -246,7 +277,7 @@ export default function ForgotPasswordForm() {
           <div className="flex items-center justify-between text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
             <button
               type="button"
-              onClick={() => { setStep(1); setOtp('') }}
+              onClick={handleBackToStep1}
               className="hover:underline"
               style={{ color: '#16181d', fontWeight: 500 }}
             >
@@ -277,7 +308,7 @@ export default function ForgotPasswordForm() {
             Come back in 15 minutes, then{' '}
             <button
               type="button"
-              onClick={() => { setStep(1); setOtp('') }}
+              onClick={handleBackToStep1}
               className="font-semibold hover:underline"
               style={{ color: '#16181d' }}
             >
@@ -290,10 +321,22 @@ export default function ForgotPasswordForm() {
     )
   }
 
-  // ─── Step 3: New password ─────────────────────────────────────────────────────
+  // ─── Step 3: New password / Success ─────────────────────────────────────────
 
   return (
     <div className="space-y-6">
+      {showSuccess ? (
+        /* Success — winking owl is already set; GalaxyWipe fires after 1.8 s */
+        <div style={{ textAlign: 'center', padding: '1.5rem 0 2.5rem' }}>
+          <p style={{ fontWeight: 700, fontSize: '1.05rem', color: '#16181d' }}>
+            Password updated!
+          </p>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'rgba(22,24,29,0.55)' }}>
+            Welcome back. Maybe write it down this time? 🦉
+          </p>
+        </div>
+      ) : (
+        <>
       <p className="text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
         Choose a new password for your account.
       </p>
@@ -369,6 +412,8 @@ export default function ForgotPasswordForm() {
           <p role="alert" className="mt-2 text-sm" style={{ color: '#dc2626' }}>{pwError}</p>
         )}
       </form>
+        </>
+      )}
 
       <GalaxyWipe
         active={wipeActive}

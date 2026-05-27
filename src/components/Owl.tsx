@@ -2,7 +2,7 @@
 
 import { useOwlPupils } from '@/hooks/useOwlPupils'
 
-export type OwlState = 'idle' | 'watching' | 'covering'
+export type OwlState = 'idle' | 'watching' | 'covering' | 'wink' | 'sympathetic'
 
 export default function Owl({
   state = 'idle',
@@ -24,8 +24,10 @@ export default function Owl({
 
   // Force idle visuals during the drop — ears down, pupils centred, wings down.
   const effectiveState: OwlState = isPerched ? state : 'idle'
-  const isWatching = effectiveState === 'watching'
-  const isCovering = effectiveState === 'covering'
+  const isWatching   = effectiveState === 'watching'
+  const isCovering   = effectiveState === 'covering'
+  const isWinking    = effectiveState === 'wink'
+  const isSympathetic = effectiveState === 'sympathetic'
 
   return (
     <svg
@@ -58,6 +60,14 @@ export default function Owl({
       <circle cx="35" cy="66" r="16" fill="#fff" stroke="#8B5E3C" strokeWidth="2" />
       <circle cx="65" cy="66" r="16" fill="#fff" stroke="#8B5E3C" strokeWidth="2" />
 
+      {/* sympathetic brows — \ / above each eye, inner corners high */}
+      {isSympathetic && (
+        <>
+          <path d="M 38 51 L 22 57" stroke="#8B5E3C" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M 62 51 L 78 57" stroke="#8B5E3C" strokeWidth="2.5" strokeLinecap="round" />
+        </>
+      )}
+
       {/* pupils
           Outer <g> — translates for mouse tracking (no CSS transition; frame-rate smooth).
           Inner <g> — scales slightly on watching; fill-box anchors scale to pupil centre. */}
@@ -77,6 +87,14 @@ export default function Owl({
           <circle cx="71" cy="66" r="2.6" fill="#fff" />
         </g>
       </g>
+
+      {/* wink overlay — paints face-disc colour over right eye + pupil, then draws eyelid arc */}
+      {isWinking && (
+        <>
+          <circle cx="65" cy="66" r="16" fill="#F5DEB8" />
+          <path d="M 49 66 Q 65 56 81 66" fill="none" stroke="#8B5E3C" strokeWidth="2.5" strokeLinecap="round" />
+        </>
+      )}
 
       {/* beak */}
       <path d="M 44 82 L 50 90 L 56 82 Z" fill="#E8954F" stroke="#8B5E3C" strokeWidth="2" />
