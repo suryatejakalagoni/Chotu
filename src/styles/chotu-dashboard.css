@@ -1111,7 +1111,7 @@ html:not(.dark) .rem-custom-input { color-scheme: light; }
    MOBILE NAV — hamburger (LEFT) + full-screen modules overlay
    ============================================================ */
 .navbar__hamburger {
-  display: none;
+  display: none; /* shown only inside the mobile media query below */
   align-items: center;
   justify-content: center;
   width: 40px;
@@ -1121,9 +1121,12 @@ html:not(.dark) .rem-custom-input { color-scheme: light; }
   color: var(--fg-0);
   cursor: pointer;
   flex-shrink: 0;
-  margin-right: 8px; /* sits on the LEFT before the brand */
 }
 .navbar__hamburger svg { width: 22px; height: 22px; }
+
+/* Profile nav-util — inline styles moved to CSS to avoid React 19 SSR style mismatch */
+.nav-util--profile { position: relative; cursor: pointer; }
+.nav-util__name { text-transform: none; font-size: 13px; letter-spacing: 0; }
 
 /* ── Modules overlay (rendered outside <header> as React sibling) ── */
 .mob-overlay {
@@ -1259,7 +1262,9 @@ html:not(.dark) .rem-custom-input { color-scheme: light; }
 @media (max-width: 767px) {
   .navbar__nav    { display: none; }
   .navbar__right  { display: none; }
-  .navbar__hamburger { display: flex; }
+  /* Hamburger is second in DOM (brand is first for stable SSR hydration),
+     order:-1 moves it visually to the leftmost position in the flex row */
+  .navbar__hamburger { display: flex; order: -1; margin-right: 8px; }
 }
 
 /* ============================================================

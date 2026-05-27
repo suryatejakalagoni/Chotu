@@ -76,7 +76,10 @@ export function TopBar({ isAdmin = false, userName }: TopBarProps) {
     <>
       <header className="navbar">
         <div className="navbar__content">
-          {/* Hamburger — left side, mobile only */}
+          {/* Brand — always first in DOM; CSS order moves hamburger visually left on mobile */}
+          <Link href="/dashboard" className="navbar__brand">CHOTU</Link>
+
+          {/* Hamburger — mobile only, visually repositioned to the left via CSS order:-1 */}
           <button
             className="navbar__hamburger"
             onClick={() => setMenuOpen(p => !p)}
@@ -90,9 +93,6 @@ export function TopBar({ isAdmin = false, userName }: TopBarProps) {
                 : <path d="M3 6h18M3 12h18M3 18h18" />}
             </svg>
           </button>
-
-          {/* Brand */}
-          <Link href="/dashboard" className="navbar__brand">CHOTU</Link>
 
           {/* Wave nav — desktop only */}
           <nav className="navbar__nav">
@@ -137,10 +137,10 @@ export function TopBar({ isAdmin = false, userName }: TopBarProps) {
               )}
             </button>
 
-            <div className="nav-util" style={{ position: 'relative', cursor: 'pointer' }}
+            <div className="nav-util nav-util--profile"
               onClick={() => setProfileOpen(p => !p)}>
               <span className="av">{initials}</span>
-              <span style={{ textTransform: 'none', fontSize: 13, letterSpacing: 0 }}>
+              <span className="nav-util__name">
                 {userName ?? 'Account'}
               </span>
               {profileOpen && (
