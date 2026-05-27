@@ -58,19 +58,38 @@ function catDisplay(cat: Category | null | undefined) {
   return { color, glyph, soft: hexToSoft(color) }
 }
 
+// Static lookup tables — produce identical output on Node.js (server) and browser (client).
+// Never use toLocaleDateString / toLocaleString in SSR-rendered paths; ICU data differs.
+const MON_S = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const MON_L = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const DOW_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const DOW_L = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+
 function fmtMoney(n: number): string {
-  return '₹' + Math.round(n).toLocaleString('en-IN')
+  const r = Math.round(n)
+  const abs = Math.abs(r)
+  const s = String(abs)
+  // Indian grouping: last 3 digits, then groups of 2 from the right
+  const formatted = s.length <= 3 ? s
+    : s.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + s.slice(-3)
+  return (r < 0 ? '-₹' : '₹') + formatted
 }
 function dayKey(iso: string): string {
-  return new Date(iso).toISOString().slice(0, 10)
+  // Slice directly — avoids Date construction and is TZ-neutral for date-only keys
+  return iso.slice(0, 10)
 }
 function dayLabel(iso: string): string {
+  const dStr = iso.slice(0, 10)
+  const now = new Date()
+  // Build local-date strings without toLocaleDateString (TZ-safe for IST)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1)
+  const yestStr = `${yest.getFullYear()}-${pad(yest.getMonth() + 1)}-${pad(yest.getDate())}`
+  if (dStr === todayStr) return 'Today'
+  if (dStr === yestStr) return 'Yesterday'
   const d = new Date(iso)
-  const today = new Date()
-  const diff = Math.floor((today.getTime() - d.getTime()) / (24 * 3600 * 1000))
-  if (today.toDateString() === d.toDateString()) return 'Today'
-  if (diff <= 1) return 'Yesterday'
-  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })
+  return `${DOW_L[d.getDay()]}, ${d.getDate()} ${MON_S[d.getMonth()]}`
 }
 
 // ─── donut chart ──────────────────────────────────────────────────────────────
@@ -219,7 +238,7 @@ function BarChart({ days }: { days: BarDay[] }) {
                 x={x} y={y} width={barW} height={h} rx={Math.min(3, barW / 2)}
                 style={{ transition: `y .8s var(--ease-out,ease) ${i * 12}ms, height .8s var(--ease-out,ease) ${i * 12}ms` }}
               >
-                <title>{new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {fmtMoney(d.total)}</title>
+                <title>{new Date(d.date).getDate()} {MON_S[new Date(d.date).getMonth()]} · {fmtMoney(d.total)}</title>
               </rect>
               {isPeak && mounted && (
                 <g transform={`translate(${x + barW / 2} ${y - 8})`}>
@@ -236,7 +255,7 @@ function BarChart({ days }: { days: BarDay[] }) {
         {days.map((d, i) => i % labelStride === 0 && (
           <text key={'l' + i} className="axis-text"
             x={PADL + i * slotW + slotW / 2} y={H - 10} textAnchor="middle">
-            {new Date(d.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+            {new Date(d.date).getDate()} {MON_S[new Date(d.date).getMonth()]}
           </text>
         ))}
       </svg>
@@ -623,7 +642,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
     const now = new Date()
     return [2, 1, 0].map(offset => {
       const d = new Date(now.getFullYear(), now.getMonth() - offset, 1)
-      return { month: d.getMonth(), label: d.toLocaleDateString('en-IN', { month: 'short' }) }
+      return { month: d.getMonth(), label: MON_S[d.getMonth()] }
     })
   }, [])
 
@@ -665,8 +684,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
     }
   }
 
-  const monthName = new Date(new Date().getFullYear(), filterMonth, 1)
-    .toLocaleDateString('en-IN', { month: 'long' })
+  const monthName = MON_L[filterMonth]
 
   // ── filter by category name (for donut click) ────────────────────────────
 
@@ -816,7 +834,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
                   <div className="bar-foot-cell">
                     <span className="l">Peak day</span>
                     <span className="v">{peak.total > 0 ? fmtMoney(peak.total) : '—'}</span>
-                    <span className="s">{peak.date ? new Date(peak.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : 'no spending yet'}</span>
+                    <span className="s">{peak.date ? (() => { const _d = new Date(peak.date); return `${DOW_S[_d.getDay()]}, ${_d.getDate()} ${MON_S[_d.getMonth()]}` })() : 'no spending yet'}</span>
                   </div>
                   <div className="bar-foot-cell">
                     <span className="l">Last 7 days</span>
@@ -900,7 +918,7 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
           ) : groupedFinal.map(g => (
             <div key={g.key} className="day-group">
               <div className="day-head">
-                <span className="when">{g.label}</span>
+                <span className="when" suppressHydrationWarning>{g.label}</span>
                 <span className="total">{g.items.length} · <b>{fmtMoney(g.total)}</b></span>
               </div>
               {g.items.map(e => (
