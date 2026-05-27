@@ -103,6 +103,319 @@ export async function createVoiceEntry(rawTranscript: unknown): Promise<VoiceAct
   }
 }
 
+// ─── processVoiceEntry ───────────────────────────────────────────────────────
+// Single-call replacement for createVoiceEntry + confirmVoiceEntry.
+// Modal opens instantly (client parses locally); this runs only on Confirm.
+
+export async function processVoiceEntry(rawTranscript: unknown): Promise<VoiceActionResult> {
+  const tParsed = transcriptSchema.safeParse({ transcript: rawTranscript })
+  if (!tParsed.success) return { error: tParsed.error.issues[0]?.message ?? 'Invalid transcript.' }
+
+  try {
+    const { supabase, user } = await getAuthUser()
+
+    const allowed = await checkVoiceRateLimit(user.id)
+    if (!allowed) return { error: 'Too many voice requests. Please wait a minute.' }
+
+    const cleanTranscript = sanitize(tParsed.data.transcript)
+    const parsedAction    = parseVoice(cleanTranscript)
+    const admin           = createAdminClient()
+    const entryId         = crypto.randomUUID()
+
+    // ── UNKNOWN ──────────────────────────────────────────────────────────────
+
+    if (parsedAction.kind === 'unknown') {
+      void admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'failed', storage_key: 'web-speech-api',
+        error_message: 'parse_failed',
+        parsed_action: { kind: 'unknown', raw: cleanTranscript },
+      })
+      return { error: "Couldn't understand that command. Try: \"Spent 100 on lunch\"" }
+    }
+
+    // ── SPENDING QUERY — read-only ────────────────────────────────────────────
+
+    if (parsedAction.kind === 'query_spending') {
+      const now = new Date()
+      const { start, end, label } = getSpendingDateRange(parsedAction.range, now)
+
+      let expenseQuery = supabase
+        .from('expenses')
+        .select('amount')
+        .eq('user_id', user.id)
+        .gte('spent_at', start.toISOString())
+        .lte('spent_at', end.toISOString())
+
+      if (parsedAction.category_name) {
+        const { data: cat } = await supabase
+          .from('categories')
+          .select('id')
+          .ilike('name', parsedAction.category_name)
+          .or(`user_id.eq.${user.id},user_id.is.null`)
+          .limit(1)
+          .maybeSingle()
+        if (cat) expenseQuery = expenseQuery.eq('category_id', cat.id)
+      }
+
+      const { data: rows } = await expenseQuery
+      const total = (rows ?? []).reduce((sum, r) => sum + (r.amount as number), 0)
+      const count = (rows ?? []).length
+
+      void admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'processed', storage_key: 'web-speech-api',
+        parsed_action: { kind: 'query_spending', range: parsedAction.range, raw: cleanTranscript },
+      })
+      void purgeOldVoiceEntries(admin, user.id)
+
+      return {
+        id: entryId,
+        queryResult: {
+          total:    Math.round(total * 100) / 100,
+          count,
+          label,
+          category: parsedAction.category_name,
+        },
+      }
+    }
+
+    // ── ATTENDANCE PLACEHOLDER ────────────────────────────────────────────────
+
+    if (parsedAction.kind === 'attendance_placeholder') {
+      void admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'processed', storage_key: 'web-speech-api',
+        parsed_action: {
+          kind: 'attendance_placeholder', subject: parsedAction.subject,
+          target_table: 'attendance_placeholder', raw: cleanTranscript,
+        },
+      })
+      void purgeOldVoiceEntries(admin, user.id)
+      return {
+        id: entryId,
+        infoMessage: `Attendance tracking is coming soon — "${parsedAction.subject}" wasn't logged.`,
+      }
+    }
+
+    // ── EXPENSE ───────────────────────────────────────────────────────────────
+
+    if (parsedAction.kind === 'expense') {
+      const { amount, description, category_name } = parsedAction
+
+      if (amount <= 0 || amount > 1_000_000)
+        return { error: 'Invalid amount. Must be between ₹1 and ₹10,00,000.' }
+      if (!description || description.length > 200)
+        return { error: 'Invalid description.' }
+
+      const { data: category } = await supabase
+        .from('categories').select('id')
+        .or(`user_id.eq.${user.id},user_id.is.null`)
+        .ilike('name', category_name).limit(1).maybeSingle()
+
+      const { data: expense, error: expErr } = await supabase
+        .from('expenses')
+        .insert({
+          user_id: user.id, title: sanitize(description), amount,
+          category_id: category?.id ?? null,
+          spent_at: new Date().toISOString(),
+          notes: `Voice: "${cleanTranscript}"`,
+        })
+        .select('id').single()
+
+      if (expErr || !expense) {
+        console.error('[processVoiceEntry] expense insert', expErr?.message)
+        return { error: 'Could not save the expense. Please try again.' }
+      }
+
+      await admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'processed', storage_key: 'web-speech-api',
+        parsed_action: {
+          kind: 'expense', amount, description: sanitize(description),
+          category: category_name, target_table: 'expenses',
+          target_id: expense.id, raw: cleanTranscript,
+        },
+      })
+      void purgeOldVoiceEntries(admin, user.id)
+      revalidatePath('/dashboard')
+      revalidatePath('/expenses')
+      return { id: entryId }
+    }
+
+    // ── INCOME ────────────────────────────────────────────────────────────────
+
+    if (parsedAction.kind === 'income') {
+      const { amount, source, category_name } = parsedAction
+
+      if (amount <= 0 || amount > 1_000_000)
+        return { error: 'Invalid amount. Must be between ₹1 and ₹10,00,000.' }
+
+      const { data: category } = await supabase
+        .from('categories').select('id')
+        .or(`user_id.eq.${user.id},user_id.is.null`)
+        .ilike('name', category_name).limit(1).maybeSingle()
+
+      const title       = source ? sanitize(source) : 'Income'
+      const cleanSource = source ? sanitize(source) : null
+
+      const { data: incomeRow, error: incErr } = await supabase
+        .from('income')
+        .insert({
+          user_id: user.id, title, amount, source: cleanSource,
+          category_id: category?.id ?? null,
+          received_at: new Date().toISOString(),
+          notes: `Voice: "${cleanTranscript}"`,
+        })
+        .select('id').single()
+
+      if (incErr || !incomeRow) {
+        console.error('[processVoiceEntry] income insert', incErr?.message)
+        return { error: 'Could not save the income. Please try again.' }
+      }
+
+      await admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'processed', storage_key: 'web-speech-api',
+        parsed_action: {
+          kind: 'income', amount, source: cleanSource, category: category_name,
+          target_table: 'income', target_id: incomeRow.id, raw: cleanTranscript,
+        },
+      })
+      void purgeOldVoiceEntries(admin, user.id)
+      revalidatePath('/dashboard')
+      revalidatePath('/expenses')
+      return { id: entryId }
+    }
+
+    // ── ASSIGNMENT ────────────────────────────────────────────────────────────
+
+    if (parsedAction.kind === 'assignment') {
+      const { subject, title, due_at } = parsedAction
+
+      if (!subject || subject.length > 100) return { error: 'Invalid subject.' }
+      if (!title   || title.length   > 200) return { error: 'Invalid title.' }
+
+      const now = new Date()
+      const dueDelta = due_at.getTime() - now.getTime()
+      if (dueDelta < 0 || dueDelta > 5 * 365 * 24 * 60 * 60 * 1000)
+        return { error: 'Due date must be within the next 5 years.' }
+
+      const { data: assignment, error: aErr } = await supabase
+        .from('assignments')
+        .insert({
+          user_id: user.id, subject: sanitize(subject), title: sanitize(title),
+          due_at: due_at.toISOString(), status: 'not_started',
+          priority: 'medium', is_recurring: false,
+        })
+        .select('id').single()
+
+      if (aErr || !assignment) {
+        console.error('[processVoiceEntry] assignment insert', aErr?.message)
+        return { error: 'Could not save the assignment. Please try again.' }
+      }
+
+      await admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'processed', storage_key: 'web-speech-api',
+        parsed_action: {
+          kind: 'assignment', subject, title, due_at: due_at.toISOString(),
+          target_table: 'assignments', target_id: assignment.id, raw: cleanTranscript,
+        },
+      })
+      void purgeOldVoiceEntries(admin, user.id)
+      revalidatePath('/dashboard')
+      revalidatePath('/assignments')
+      return { id: entryId }
+    }
+
+    // ── EXAM ──────────────────────────────────────────────────────────────────
+
+    if (parsedAction.kind === 'exam') {
+      const { subject, exam_type, exam_at } = parsedAction
+
+      if (!subject   || subject.length   > 100) return { error: 'Invalid subject.' }
+      if (!exam_type || exam_type.length  >  50) return { error: 'Invalid exam type.' }
+
+      const now = new Date()
+      const examDelta = exam_at.getTime() - now.getTime()
+      if (examDelta < 0 || examDelta > 5 * 365 * 24 * 60 * 60 * 1000)
+        return { error: 'Exam date must be within the next 5 years.' }
+
+      const { data: exam, error: eErr } = await supabase
+        .from('exams')
+        .insert({
+          user_id: user.id, subject: sanitize(subject),
+          title: `${sanitize(subject)} — ${sanitize(exam_type)}`,
+          exam_type: sanitize(exam_type), exam_at: exam_at.toISOString(), status: 'upcoming',
+        })
+        .select('id').single()
+
+      if (eErr || !exam) {
+        console.error('[processVoiceEntry] exam insert', eErr?.message)
+        return { error: 'Could not save the exam. Please try again.' }
+      }
+
+      await admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'processed', storage_key: 'web-speech-api',
+        parsed_action: {
+          kind: 'exam', subject, exam_type, exam_at: exam_at.toISOString(),
+          target_table: 'exams', target_id: exam.id, raw: cleanTranscript,
+        },
+      })
+      void purgeOldVoiceEntries(admin, user.id)
+      revalidatePath('/dashboard')
+      revalidatePath('/exams')
+      return { id: entryId }
+    }
+
+    // ── CUSTOM REMINDER ───────────────────────────────────────────────────────
+
+    if (parsedAction.kind === 'custom_reminder') {
+      const { text, trigger_at } = parsedAction
+
+      if (!text || text.length > 300) return { error: 'Invalid reminder text.' }
+
+      const now = new Date()
+      const triggerDelta = trigger_at.getTime() - now.getTime()
+      if (triggerDelta < 0 || triggerDelta > 5 * 365 * 24 * 60 * 60 * 1000)
+        return { error: 'Reminder time must be in the future and within 5 years.' }
+
+      const cleanText = sanitize(text)
+
+      const { data: notif, error: nErr } = await admin
+        .from('notifications')
+        .insert({
+          user_id: user.id, title: cleanText.slice(0, 100), body: cleanText,
+          type: 'custom_reminder', read: false,
+          data: { text: cleanText, trigger_at: trigger_at.toISOString() },
+        })
+        .select('id').single()
+
+      if (nErr || !notif) {
+        console.error('[processVoiceEntry] notification insert', nErr?.message)
+        return { error: 'Could not save the reminder. Please try again.' }
+      }
+
+      await admin.from('voice_entries').insert({
+        id: entryId, user_id: user.id, transcript: cleanTranscript,
+        status: 'processed', storage_key: 'web-speech-api',
+        parsed_action: {
+          kind: 'custom_reminder', text: cleanText, trigger_at: trigger_at.toISOString(),
+          target_table: 'notifications', target_id: notif.id, raw: cleanTranscript,
+        },
+      })
+      void purgeOldVoiceEntries(admin, user.id)
+      return { id: entryId }
+    }
+
+    return { error: 'Unhandled action type.' }
+  } catch {
+    return { error: 'Not authenticated.' }
+  }
+}
+
 // ─── confirmVoiceEntry ────────────────────────────────────────────────────────
 
 export async function confirmVoiceEntry(

@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useVoiceStore } from '@/store/voice-store'
-import { confirmVoiceEntry } from '@/lib/actions/voice'
+import { processVoiceEntry } from '@/lib/actions/voice'
 import { parseVoice, formatVoiceDate, formatVoiceDateTime, spendingRangeLabel } from '@/lib/voice-parser'
 import type { ParsedAction } from '@/lib/voice-parser'
 
@@ -184,7 +184,6 @@ function confirmLabel(action: ParsedAction | null, isPending: boolean): string {
 export function VoiceModal() {
   const {
     status,
-    voiceEntryId,
     parsedAction,
     editedTranscript,
     queryResult,
@@ -210,11 +209,11 @@ export function VoiceModal() {
   }
 
   const handleConfirm = () => {
-    if (!voiceEntryId || isPending) return
+    if (isPending) return
     setServerError(null)
 
     startTransition(async () => {
-      const result = await confirmVoiceEntry(voiceEntryId, editedTranscript)
+      const result = await processVoiceEntry(editedTranscript)
 
       if (result.error) {
         setServerError(result.error)
@@ -234,7 +233,7 @@ export function VoiceModal() {
       }
 
       // Normal success: close modal
-      setLastConfirmedEntryId(voiceEntryId)
+      setLastConfirmedEntryId(result.id ?? null)
       setStatus('done')
     })
   }

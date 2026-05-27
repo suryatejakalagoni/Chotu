@@ -4,7 +4,6 @@ import { useEffect, useCallback, useState } from 'react'
 import { Mic, MicOff, Square, Loader2, HelpCircle } from 'lucide-react'
 import { useVoiceStore } from '@/store/voice-store'
 import { useVoiceInput, isVoiceSupported } from '@/hooks/use-voice-input'
-import { createVoiceEntry } from '@/lib/actions/voice'
 import { parseVoice } from '@/lib/voice-parser'
 import { VoiceHelpModal } from './voice-help-modal'
 
@@ -14,8 +13,6 @@ export function MicButton() {
     transcript,
     setStatus,
     setParsedAction,
-    setVoiceEntryId,
-    setErrorMessage,
     reset,
   } = useVoiceStore()
 
@@ -30,30 +27,12 @@ export function MicButton() {
     setSupported(isVoiceSupported())
   }, [])
 
-  // When speech ends → parse + write pending DB row → open confirmation modal
+  // When speech ends → parse locally → open modal instantly (no server call here)
   useEffect(() => {
     if (status !== 'processing') return
-
-    if (!transcript) {
-      setStatus('idle')
-      return
-    }
-
-    async function process() {
-      const parsed = parseVoice(transcript)
-      setParsedAction(parsed)
-
-      const result = await createVoiceEntry(transcript)
-      if (result.error) {
-        setStatus('error')
-        setErrorMessage(result.error)
-        return
-      }
-      setVoiceEntryId(result.id!)
-      setStatus('confirming')
-    }
-
-    process()
+    if (!transcript) { setStatus('idle'); return }
+    setParsedAction(parseVoice(transcript))
+    setStatus('confirming')
   }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClick = useCallback(() => {

@@ -24,7 +24,6 @@ interface VoiceState {
   transcript: string
   editedTranscript: string
   parsedAction: ParsedAction | null
-  voiceEntryId: string | null
   lastConfirmedEntryId: string | null
   errorMessage: string | null
   // Set when server responds to a query_spending confirm — keeps modal open
@@ -36,7 +35,6 @@ interface VoiceState {
   setTranscript: (t: string) => void
   setEditedTranscript: (t: string) => void
   setParsedAction: (a: ParsedAction | null) => void
-  setVoiceEntryId: (id: string | null) => void
   setLastConfirmedEntryId: (id: string | null) => void
   setErrorMessage: (msg: string | null) => void
   setQueryResult: (r: SpendingQueryResult | null) => void
@@ -49,7 +47,6 @@ const initialState = {
   transcript: '',
   editedTranscript: '',
   parsedAction: null,
-  voiceEntryId: null,
   lastConfirmedEntryId: null,
   errorMessage: null,
   queryResult: null,
@@ -63,7 +60,6 @@ export const useVoiceStore = create<VoiceState>()((set) => ({
   setTranscript:          (transcript)          => set({ transcript }),
   setEditedTranscript:    (editedTranscript)    => set({ editedTranscript }),
   setParsedAction:        (parsedAction)        => set({ parsedAction }),
-  setVoiceEntryId:        (voiceEntryId)        => set({ voiceEntryId }),
   setLastConfirmedEntryId:(lastConfirmedEntryId)=> set({ lastConfirmedEntryId }),
   setErrorMessage:        (errorMessage)        => set({ errorMessage }),
   setQueryResult:         (queryResult)         => set({ queryResult }),
@@ -75,7 +71,6 @@ export const useVoiceStore = create<VoiceState>()((set) => ({
       transcript: '',
       editedTranscript: '',
       parsedAction: null,
-      voiceEntryId: null,
       errorMessage: null,
       queryResult: null,
       infoMessage: null,
