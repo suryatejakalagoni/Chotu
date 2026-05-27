@@ -233,20 +233,20 @@ export default function ForgotPasswordForm() {
           <input type="hidden" name="email" value={emailInput} />
 
           <div>
-            <label htmlFor="otp" style={labelStyle}>6-digit code</label>
+            <label htmlFor="otp" style={labelStyle}>8-digit code</label>
             <input
               id="otp"
               name="token"
               type="text"
               inputMode="numeric"
-              pattern="\d{6}"
-              maxLength={6}
+              pattern="\d{8}"
+              maxLength={8}
               autoComplete="one-time-code"
               autoFocus
               value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
               disabled={isLocked || step2Pending}
-              placeholder="000000"
+              placeholder="00000000"
               className={`${inputClass} text-center font-mono tracking-[0.4em] text-base`}
               style={{
                 ...inputStyle,
@@ -258,7 +258,7 @@ export default function ForgotPasswordForm() {
 
           <button
             type="submit"
-            disabled={isLocked || step2Pending || otp.length !== 6}
+            disabled={isLocked || step2Pending || otp.length !== 8}
             className="w-full rounded-lg py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50"
             style={{ background: '#1a1a1a', color: '#fff' }}
           >

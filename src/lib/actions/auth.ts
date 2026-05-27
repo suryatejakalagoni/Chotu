@@ -230,7 +230,7 @@ export async function verifyResetOtp(
   const email = String(formData.get('email') ?? '').trim()
   const token = String(formData.get('token') ?? '').replace(/\D/g, '')
 
-  if (!email || token.length !== 6) {
+  if (!email || token.length !== 8) {
     return { message: 'Something went wrong. Please start over.' }
   }
 
