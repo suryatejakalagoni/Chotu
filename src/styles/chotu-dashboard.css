@@ -1125,19 +1125,19 @@ html:not(.dark) .rem-custom-input { color-scheme: light; }
 }
 .navbar__hamburger svg { width: 22px; height: 22px; }
 
-/* sits below the sticky bar, hidden behind it until .open */
+/* sits below the sticky bar, hidden above it until .open */
 .navbar__mobile-menu {
   display: none;
-  position: absolute;
-  top: 64px;  /* matches .navbar height */
+  position: fixed;          /* fixed so it's not clipped by any parent */
+  top: 64px;                /* matches .navbar height */
   left: 0; right: 0;
   background: var(--bg-2);
   border-bottom: 1px solid var(--line);
-  translate: 0 -100%;
-  z-index: 49;  /* below navbar (50) so it slides out from under */
-  transition: translate var(--speed-nav);
+  transform: translateY(-100%);   /* use transform (universal) not translate property */
+  z-index: 200;             /* above navbar (50) and page content */
+  transition: transform var(--speed-nav);
 }
-.navbar__mobile-menu.open { translate: 0 0; }
+.navbar__mobile-menu.open { transform: translateY(0); }
 
 .mobile-nav-link {
   display: flex;
