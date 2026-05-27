@@ -181,7 +181,7 @@ export async function confirmVoiceEntry(
         parsed_action: { kind: 'query_spending', range: parsedAction.range, raw: cleanTranscript },
       }).eq('id', entry.id)
 
-      await purgeOldVoiceEntries(admin, user.id)
+      void purgeOldVoiceEntries(admin, user.id)
 
       return {
         id:          entry.id,
@@ -208,7 +208,7 @@ export async function confirmVoiceEntry(
         },
       }).eq('id', entry.id)
 
-      await purgeOldVoiceEntries(admin, user.id)
+      void purgeOldVoiceEntries(admin, user.id)
 
       return {
         id:          entry.id,
@@ -268,7 +268,7 @@ export async function confirmVoiceEntry(
         },
       }).eq('id', entry.id)
 
-      await purgeOldVoiceEntries(admin, user.id)
+      void purgeOldVoiceEntries(admin, user.id)
       revalidatePath('/dashboard')
       revalidatePath('/expenses')
       return { id: entry.id }
@@ -327,7 +327,7 @@ export async function confirmVoiceEntry(
         },
       }).eq('id', entry.id)
 
-      await purgeOldVoiceEntries(admin, user.id)
+      void purgeOldVoiceEntries(admin, user.id)
       revalidatePath('/dashboard')
       revalidatePath('/expenses')
       return { id: entry.id }
@@ -380,7 +380,7 @@ export async function confirmVoiceEntry(
         },
       }).eq('id', entry.id)
 
-      await purgeOldVoiceEntries(admin, user.id)
+      void purgeOldVoiceEntries(admin, user.id)
       revalidatePath('/dashboard')
       revalidatePath('/assignments')
       return { id: entry.id }
@@ -432,7 +432,7 @@ export async function confirmVoiceEntry(
         },
       }).eq('id', entry.id)
 
-      await purgeOldVoiceEntries(admin, user.id)
+      void purgeOldVoiceEntries(admin, user.id)
       revalidatePath('/dashboard')
       revalidatePath('/exams')
       return { id: entry.id }
@@ -485,7 +485,7 @@ export async function confirmVoiceEntry(
         },
       }).eq('id', entry.id)
 
-      await purgeOldVoiceEntries(admin, user.id)
+      void purgeOldVoiceEntries(admin, user.id)
       return { id: entry.id }
     }
 

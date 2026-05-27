@@ -8,9 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Database } from '@/types/database.types'
 
 type Budget = Database['public']['Tables']['budgets']['Row']
-type Expense = Database['public']['Tables']['expenses']['Row']
-type Income = Database['public']['Tables']['income']['Row']
-type Category = Database['public']['Tables']['categories']['Row']
+type Expense = Pick<Database['public']['Tables']['expenses']['Row'], 'amount' | 'category_id'>
+type Income = Pick<Database['public']['Tables']['income']['Row'], 'amount'>
+type Category = Pick<Database['public']['Tables']['categories']['Row'], 'id' | 'name' | 'color' | 'type' | 'icon'>
 
 interface Props {
   budgets: Budget[]

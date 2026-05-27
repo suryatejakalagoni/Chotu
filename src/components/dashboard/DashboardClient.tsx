@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { useChotuActions } from '@/components/chotu/ChotuStage'
+import { MicButton } from '@/components/voice/mic-button'
+import { VoiceModal } from '@/components/voice/voice-modal'
+import { UndoButton } from '@/components/voice/undo-button'
 
 // ─── types ─────────────────────────────────────────────────────────────────────
 
@@ -99,15 +102,8 @@ function dueCls(iso: string) {
 function VoiceCard() {
   return (
     <div className="voice-card">
-      <div className="vc-mic">🎙</div>
-      <div>
-        <p className="voice-title">Tap to speak</p>
-        <p className="voice-sub">Works best on Android Chrome. Say "add assignment" or "add expense".</p>
-      </div>
-      <div className="vc-model">
-        <div className="l">NLU model</div>
-        <div className="v">Chotu v3</div>
-      </div>
+      <MicButton />
+      <UndoButton />
     </div>
   )
 }
@@ -366,6 +362,9 @@ export function DashboardClient({
 
       {/* MONTH */}
       <MonthCard monthTotal={monthTotal} />
+
+      {/* Voice confirmation modal — portal, renders outside main flow */}
+      <VoiceModal />
     </main>
   )
 }

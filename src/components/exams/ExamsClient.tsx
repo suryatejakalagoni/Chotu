@@ -184,9 +184,10 @@ function ExamRow({ e, onDone, onDel }: {
 
 // ─── add exam modal ───────────────────────────────────────────────────────────
 
-function AddExamModal({ onClose, onSave }: {
+function AddExamModal({ onClose, onSave, onError }: {
   onClose: () => void
   onSave: (e: ExamItem) => void
+  onError: (id: string, msg: string) => void
 }) {
   const [extraSubjects, setExtraSubjects] = useState<Record<string, { color: string; glyph: string; soft: string }>>({})
   const allSubjects = { ...extraSubjects }
@@ -198,8 +199,6 @@ function AddExamModal({ onClose, onSave }: {
   const [syllabus, setSyllabus] = useState('')
   const [addingSubj, setAddingSubj] = useState(false)
   const [newSubj, setNewSubj] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -216,9 +215,8 @@ function AddExamModal({ onClose, onSave }: {
     setSubject(n); setAddingSubj(false); setNewSubj('')
   }
 
-  async function submit() {
+  function submit() {
     if (!title.trim() || !subject) return
-    setSaving(true); setErr(null)
     const raw = {
       subject,
       exam_type: examType,
@@ -227,10 +225,10 @@ function AddExamModal({ onClose, onSave }: {
       syllabus_text: syllabus.trim() || undefined,
       status: 'upcoming' as const,
     }
-    const result = await createExam(raw)
-    if (result.error) { setErr(result.error); setSaving(false); return }
+    // Optimistic: close immediately, server runs in background
+    const tempId = 'tmp_' + Date.now()
     onSave({
-      id: result.id ?? 'tmp_' + Date.now(),
+      id: tempId,
       subject, title: title.trim(),
       exam_type: examType,
       exam_at: raw.exam_at,
@@ -240,6 +238,22 @@ function AddExamModal({ onClose, onSave }: {
       status: 'upcoming',
     })
     onClose()
+
+    void (async () => {
+      const result = await createExam(raw)
+      if (result.error) { onError(tempId, result.error); return }
+      // Swap temp id for real DB id — parent handles it via onSave with real id
+      if (result.id && result.id !== tempId) onSave({ ...{
+        id: result.id,
+        subject, title: title.trim(),
+        exam_type: examType,
+        exam_at: raw.exam_at,
+        venue: venue.trim() || null,
+        syllabus_text: syllabus.trim() || null,
+        notes: null,
+        status: 'upcoming' as const,
+      }})
+    })()
   }
 
   return (
@@ -253,7 +267,6 @@ function AddExamModal({ onClose, onSave }: {
           <h3 className="asn-h">Pin a <span className="hl">date</span> on your radar.</h3>
         </div>
         <div className="body">
-          {err && <div style={{ color: 'var(--danger,#ef4444)', fontSize: 13, marginBottom: 8 }}>{err}</div>}
 
           <div className="field">
             <label>Subject</label>
@@ -327,9 +340,9 @@ function AddExamModal({ onClose, onSave }: {
         </div>
 
         <div className="footer">
-          <button className="btn-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn-save" disabled={!title.trim() || !subject || saving} onClick={submit}>
-            {saving ? 'Saving…' : 'Add exam'}
+          <button className="btn-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn-save" disabled={!title.trim() || !subject} onClick={submit}>
+            Add exam
           </button>
         </div>
       </div>
@@ -424,9 +437,24 @@ export function ExamsClient({ initialExams }: { initialExams: ExamItem[] }) {
   // ── mutations ─────────────────────────────────────────────────────────────
 
   const handleAdd = (e: ExamItem) => {
-    setItems(p => [e, ...p])
-    toast('Exam added', 'success')
-    chotu?.celebrate('locked in')
+    setItems(p => {
+      // If we already have this real id, replace the temp entry; otherwise prepend
+      const hasTmp = p.some(x => x.id.startsWith('tmp_') && x.subject === e.subject && x.title === e.title)
+      if (!e.id.startsWith('tmp_') && hasTmp) {
+        return p.map(x => (x.id.startsWith('tmp_') && x.subject === e.subject && x.title === e.title) ? e : x)
+      }
+      if (p.some(x => x.id === e.id)) return p.map(x => x.id === e.id ? e : x)
+      return [e, ...p]
+    })
+    if (e.id.startsWith('tmp_')) {
+      toast('Exam added', 'success')
+      chotu?.celebrate('locked in')
+    }
+  }
+
+  const handleExamError = (id: string, msg: string) => {
+    setItems(p => p.filter(e => e.id !== id))
+    toast(msg, 'error')
   }
 
   const handleDone = async (id: string) => {
@@ -605,7 +633,7 @@ export function ExamsClient({ initialExams }: { initialExams: ExamItem[] }) {
         </section>
       </main>
 
-      {addOpen && <AddExamModal onClose={() => setAddOpen(false)} onSave={handleAdd} />}
+      {addOpen && <AddExamModal onClose={() => setAddOpen(false)} onSave={handleAdd} onError={handleExamError} />}
       <Toasts toasts={toasts} />
     </>
   )

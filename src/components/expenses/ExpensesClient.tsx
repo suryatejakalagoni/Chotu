@@ -4,10 +4,11 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { ChotuOwl } from '@/components/chotu/ChotuOwl'
 import { useChotuActions } from '@/components/chotu/ChotuStage'
 import { addExpense, deleteExpense, updateExpense } from '@/lib/actions/expenses'
+import { BudgetOverview } from './budget-overview'
 
 // ─── types ─────────────────────────────────────────────────────────────────────
 
-type Category = { id: string; name: string; color: string | null; icon: string | null; type: string | null }
+type Category = { id: string; name: string; color: string | null; icon: string | null; type: string }
 
 export type ExpenseItem = {
   id: string
@@ -286,7 +287,7 @@ function BarChart({ days }: { days: BarDay[] }) {
                 x={x} y={y} width={barW} height={h} rx={Math.min(3, barW / 2)}
                 style={{ transition: `y .8s var(--ease-out,ease) ${i * 12}ms, height .8s var(--ease-out,ease) ${i * 12}ms` }}
               >
-                <title>{fmtDateShort(d.date)} · {fmtMoney(d.total)}</title>
+                <title suppressHydrationWarning>{fmtDateShort(d.date)} · {fmtMoney(d.total)}</title>
               </rect>
               {isPeak && mounted && (
                 <g transform={`translate(${x + barW / 2} ${y - 8})`}>
@@ -591,9 +592,12 @@ function Toasts({ toasts }: { toasts: Toast[] }) {
 interface Props {
   initialExpenses: ExpenseItem[]
   categories: Category[]
+  budgets?: import('@/types/database.types').Database['public']['Tables']['budgets']['Row'][]
+  incomes?: import('@/types/database.types').Database['public']['Tables']['income']['Row'][]
+  currentMonth?: string
 }
 
-export function ExpensesClient({ initialExpenses, categories }: Props) {
+export function ExpensesClient({ initialExpenses, categories, budgets = [], incomes = [], currentMonth }: Props) {
   const chotu = useChotuActions()
   const [expenses, setExpenses] = useState<ExpenseItem[]>(initialExpenses)
   const [addOpen, setAddOpen] = useState(false)
@@ -936,6 +940,23 @@ export function ExpensesClient({ initialExpenses, categories }: Props) {
             })()}
           </div>
         </section>
+
+        {/* BUDGETS */}
+        {currentMonth && (
+          <section className="exp-budgets">
+            <BudgetOverview
+              budgets={budgets}
+              expenses={expenses.filter(e => {
+                const d = new Date(e.spent_at)
+                const now = new Date()
+                return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+              })}
+              incomes={incomes}
+              categories={categories}
+              currentMonth={currentMonth}
+            />
+          </section>
+        )}
 
         {/* FILTERS */}
         <section className="exp-filters">

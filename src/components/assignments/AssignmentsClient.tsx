@@ -591,13 +591,18 @@ export function AssignmentsClient({ initialAssignments }: { initialAssignments: 
   }
 
   const handleStatus = async (id: string, status: 'not_started' | 'in_progress' | 'done') => {
+    const prev = items.find(a => a.id === id)
     setItems(p => p.map(a => {
       if (a.id !== id) return a
       const progress = status === 'done' ? 100 : status === 'in_progress' && a.progress === 0 ? 10 : a.progress
       return { ...a, status, progress }
     }))
     if (status === 'done') { toast('Marked done ✓', 'success'); chotu?.celebrate('nice!') }
-    await updateAssignment({ id, status })
+    const result = await updateAssignment({ id, status })
+    if (result?.error) {
+      if (prev) setItems(p => p.map(a => a.id === id ? prev : a))
+      toast(result.error, 'error')
+    }
   }
 
   // Debounce timer for progress persistence — drag fires many events,

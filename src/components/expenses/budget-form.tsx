@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import type { Database } from '@/types/database.types'
 
-type Category = Database['public']['Tables']['categories']['Row']
+type Category = Pick<Database['public']['Tables']['categories']['Row'], 'id' | 'name' | 'type'>
 type FormValues = z.infer<typeof budgetSchema>
 
 interface Props {
