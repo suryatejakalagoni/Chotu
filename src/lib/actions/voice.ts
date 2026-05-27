@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import DOMPurify from 'isomorphic-dompurify'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { transcriptSchema, confirmVoiceSchema, undoVoiceSchema } from '@/lib/validations/voice'
@@ -63,8 +62,11 @@ async function purgeOldVoiceEntries(
     .not('id', 'in', `(${keepIds.join(',')})`)
 }
 
+// Strip HTML tags (equivalent to DOMPurify with ALLOWED_TAGS:[]).
+// isomorphic-dompurify's jsdom dep fails on Vercel (ERR_REQUIRE_ESM).
+// Safe here: output is stored as plain text in Postgres and React-escaped on render.
 function sanitize(text: string): string {
-  return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] }).trim()
+  return text.replace(/<[^>]*>/g, '').trim()
 }
 
 // ─── createVoiceEntry ─────────────────────────────────────────────────────────
