@@ -83,16 +83,18 @@ export async function signUp(
   const { username, display_name, email, password } = validated.data
   const supabase = await createClient()
 
-  const { error } = await supabase.auth.signUp({
+  const { data: signUpData, error } = await supabase.auth.signUp({
     email,
     password,
     options: { data: { username, display_name } },
   })
 
   if (error) {
-    console.error('[signUp]', error.message)
+    console.error('[signUp] status=%s code=%s message=%s', error.status, (error as any).code, error.message)
     return { message: 'Could not create account. Please try again.' }
   }
+
+  console.log('[signUp] success uid=%s confirmed=%s', signUpData.user?.id, signUpData.user?.email_confirmed_at)
 
   return { success: true }
 }
