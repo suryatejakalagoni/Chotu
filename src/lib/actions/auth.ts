@@ -9,11 +9,16 @@ import {
   LoginSchema,
   ForgotPasswordEmailSchema,
   NewPasswordSchema,
+  PhoneSchema,
+  PhoneSignupSchema,
+  PhoneOtpSchema,
   type SignupFormState,
   type LoginFormState,
   type ForgotPasswordState,
   type UpdatePasswordState,
   type VerifyOtpState,
+  type PhoneOtpSendState,
+  type PhoneOtpVerifyState,
 } from '@/lib/validations/auth'
 
 const RATE_LIMIT_MAX = 5
@@ -83,18 +88,16 @@ export async function signUp(
   const { username, display_name, email, password } = validated.data
   const supabase = await createClient()
 
-  const { data: signUpData, error } = await supabase.auth.signUp({
+  const { error } = await supabase.auth.signUp({
     email,
     password,
     options: { data: { username, display_name } },
   })
 
   if (error) {
-    console.error('[signUp] status=%s code=%s message=%s', error.status, (error as any).code, error.message)
+    console.error('[signUp]', error.message)
     return { message: 'Could not create account. Please try again.' }
   }
-
-  console.log('[signUp] success uid=%s confirmed=%s', signUpData.user?.id, signUpData.user?.email_confirmed_at)
 
   return { success: true }
 }
@@ -288,6 +291,104 @@ export async function updatePassword(
     }
   } catch {
     return { message: 'Something went wrong. Please try again.' }
+  }
+
+  return { success: true }
+}
+
+export async function sendLoginPhoneOtp(
+  _prevState: PhoneOtpSendState,
+  formData: FormData
+): Promise<PhoneOtpSendState> {
+  const ip = await getClientIp()
+  const allowed = await checkRateLimit(`phone_otp:${ip}`)
+  if (!allowed) {
+    return { message: 'Too many attempts. Please try again in 15 minutes.' }
+  }
+
+  const raw = String(formData.get('phone') ?? '').replace(/\s/g, '')
+  const phone = raw.startsWith('+91') ? raw : `+91${raw}`
+
+  const validated = PhoneSchema.safeParse({ phone })
+  if (!validated.success) {
+    return { errors: validated.error.flatten().fieldErrors }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithOtp({ phone: validated.data.phone })
+
+  if (error) {
+    console.error('[sendLoginPhoneOtp]', error.message)
+    return { message: 'Could not send OTP. Please try again.' }
+  }
+
+  return { success: true, phone: validated.data.phone }
+}
+
+export async function sendSignupPhoneOtp(
+  _prevState: PhoneOtpSendState,
+  formData: FormData
+): Promise<PhoneOtpSendState> {
+  const ip = await getClientIp()
+  const allowed = await checkRateLimit(`phone_otp:${ip}`)
+  if (!allowed) {
+    return { message: 'Too many attempts. Please try again in 15 minutes.' }
+  }
+
+  const raw = String(formData.get('phone') ?? '').replace(/\s/g, '')
+  const phone = raw.startsWith('+91') ? raw : `+91${raw}`
+
+  const validated = PhoneSignupSchema.safeParse({
+    username: formData.get('username'),
+    display_name: formData.get('display_name'),
+    phone,
+  })
+  if (!validated.success) {
+    return { errors: validated.error.flatten().fieldErrors }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithOtp({
+    phone: validated.data.phone,
+    options: { data: { username: validated.data.username, display_name: validated.data.display_name } },
+  })
+
+  if (error) {
+    console.error('[sendSignupPhoneOtp]', error.message)
+    return { message: 'Could not send OTP. Please try again.' }
+  }
+
+  return { success: true, phone: validated.data.phone }
+}
+
+export async function verifyPhoneOtp(
+  _prevState: PhoneOtpVerifyState,
+  formData: FormData
+): Promise<PhoneOtpVerifyState> {
+  const ip = await getClientIp()
+  const allowed = await checkRateLimit(`phone_verify:${ip}`)
+  if (!allowed) {
+    return { message: 'Too many attempts. Please try again in 15 minutes.' }
+  }
+
+  const phone = String(formData.get('phone') ?? '').trim()
+  const token = String(formData.get('token') ?? '').replace(/\D/g, '')
+
+  const validated = PhoneOtpSchema.safeParse({ phone, token })
+  if (!validated.success) {
+    return { errors: validated.error.flatten().fieldErrors }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.verifyOtp({
+    phone: validated.data.phone,
+    token: validated.data.token,
+    type: 'sms',
+  })
+
+  if (error) {
+    console.error('[verifyPhoneOtp]', error.message)
+    return { message: 'Invalid or expired code. Please try again.' }
   }
 
   return { success: true }

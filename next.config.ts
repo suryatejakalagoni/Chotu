@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
               "img-src 'self' blob: data: https://*.supabase.co",
               "font-src 'self'",
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.googleapis.com",
+              // Same-origin workers compiled by webpack (/_next/static/chunks/*.worker.js)
+              "worker-src 'self'",
               "frame-ancestors 'none'",
             ].join("; "),
           },

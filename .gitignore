@@ -13,6 +13,13 @@
 # testing
 /coverage
 
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+tests/e2e/.auth/*.json
+.env.test
+
 # next.js
 /.next/
 /out/
@@ -45,3 +52,7 @@ next-env.d.ts
 public/landing/*.mp4
 
 .vercel
+.gstack/
+
+# Claude Code
+.claude/

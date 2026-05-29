@@ -79,7 +79,19 @@ type UploadUrlResult =
 
 export async function getCommunityUploadUrl(raw: unknown): Promise<UploadUrlResult> {
   const parsed = communityFileMeta.safeParse(raw)
-  if (!parsed.success) return { error: 'File type not allowed.' }
+  if (!parsed.success) {
+    const hasSizeError = parsed.error.issues.some(i => i.path[0] === 'size_bytes')
+    if (hasSizeError) {
+      const sizeBytes =
+        raw !== null && typeof raw === 'object' && 'size_bytes' in raw &&
+        typeof (raw as Record<string, unknown>).size_bytes === 'number'
+          ? (raw as { size_bytes: number }).size_bytes
+          : null
+      const mb = sizeBytes !== null ? (sizeBytes / 1024 / 1024).toFixed(2) : null
+      return { error: mb ? `File is ${mb} MB — exceeds the 10 MB limit.` : 'File exceeds the 10 MB limit.' }
+    }
+    return { error: 'File type not allowed.' }
+  }
 
   const meta = parsed.data
 

@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
-import { logIn, signInWithGoogle } from '@/lib/actions/auth'
-import { type LoginFormState } from '@/lib/validations/auth'
+import { logIn, signInWithGoogle, sendLoginPhoneOtp, verifyPhoneOtp } from '@/lib/actions/auth'
+import { type LoginFormState, type PhoneOtpSendState, type PhoneOtpVerifyState } from '@/lib/validations/auth'
 import { useOwlState } from '@/components/auth/OwlContext'
 import { GalaxyButton } from '@/components/auth/GalaxyButton'
 import { GalaxyWipe } from '@/components/auth/GalaxyWipe'
@@ -39,137 +39,309 @@ function EyeClosed() {
 }
 
 export default function LoginForm() {
-  const [state, action, pending] = useActionState<LoginFormState, FormData>(
-    logIn,
-    undefined
-  )
-  const { setOwlState } = useOwlState()
+  const [activeTab, setActiveTab] = useState<'email' | 'phone'>('email')
+
+  // Email auth state
+  const [state, action, pending] = useActionState<LoginFormState, FormData>(logIn, undefined)
   const [showPassword, setShowPassword] = useState(false)
   const [eyeKey, setEyeKey]             = useState(0)
-  const router                          = useRouter()
   const [authError, setAuthError]       = useState<string | null>(null)
 
-  // Ref on the div wrapping GalaxyButton so we can read its viewport coords.
-  const btnWrapperRef  = useRef<HTMLDivElement>(null)
+  // Phone auth state
+  const [sendState, sendAction, sendPending] = useActionState<PhoneOtpSendState, FormData>(sendLoginPhoneOtp, undefined)
+  const [verifyState, verifyAction, verifyPending] = useActionState<PhoneOtpVerifyState, FormData>(verifyPhoneOtp, undefined)
+  const [phoneStep, setPhoneStep]     = useState<'phone' | 'otp'>('phone')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [sendError, setSendError]     = useState<string | null>(null)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+
+  const { setOwlState }  = useOwlState()
+  const router           = useRouter()
+  const btnWrapperRef    = useRef<HTMLDivElement>(null)
   const [wipeActive, setWipeActive]   = useState(false)
   const [wipeOrigin, setWipeOrigin]   = useState({ x: 0, y: 0 })
-  // Guard against the effect firing twice (React strict-mode double-invoke).
   const wipeArmedRef = useRef(false)
 
-  // Mirror state.message into authError so we can clear it on each new attempt
-  // and render it inline near the button rather than as a top-of-form banner.
-  useEffect(() => {
-    setAuthError(state?.message ?? null)
-  }, [state])
-
-  useEffect(() => {
-    if (!state?.success || wipeArmedRef.current) return
+  const armWipe = () => {
+    if (wipeArmedRef.current) return
     wipeArmedRef.current = true
-
     const rect = btnWrapperRef.current?.getBoundingClientRect()
     setWipeOrigin({
       x: rect && rect.width  > 0 ? rect.left + rect.width  / 2 : window.innerWidth  / 2,
       y: rect && rect.height > 0 ? rect.top  + rect.height / 2 : window.innerHeight / 2,
     })
     setWipeActive(true)
-  }, [state])
+  }
+
+  useEffect(() => { setAuthError(state?.message ?? null) }, [state])
+  useEffect(() => { if (state?.success) armWipe() }, [state])
+
+  useEffect(() => { setSendError(sendState?.message ?? null) }, [sendState])
+  useEffect(() => {
+    if (sendState?.success && sendState.phone) {
+      setPhoneNumber(sendState.phone)
+      setPhoneStep('otp')
+    }
+  }, [sendState])
+
+  useEffect(() => { setVerifyError(verifyState?.message ?? null) }, [verifyState])
+  useEffect(() => { if (verifyState?.success) armWipe() }, [verifyState])
 
   const togglePassword = () => {
     setShowPassword(v => !v)
     setEyeKey(k => k + 1)
   }
 
+  const switchTab = (tab: 'email' | 'phone') => {
+    setActiveTab(tab)
+    wipeArmedRef.current = false
+  }
+
   return (
     <div className="space-y-6">
-      <form
-        action={action}
-        onSubmit={() => setAuthError(null)}
-        className="space-y-4"
-      >
 
-        {/* Email */}
-        <div>
-          <label
-            htmlFor="email"
-            className="block text-xs font-medium uppercase tracking-widest mb-1"
-            style={{ color: 'rgba(22,24,29,0.65)' }}
+      {/* Tab switcher */}
+      <div style={{ display: 'flex', background: '#eceef1', borderRadius: '0.5rem', padding: '3px' }}>
+        {(['email', 'phone'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => switchTab(tab)}
+            style={{
+              flex: 1,
+              padding: '0.375rem',
+              borderRadius: '0.35rem',
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              border: 'none',
+              cursor: 'pointer',
+              background: activeTab === tab ? '#fff' : 'transparent',
+              color: '#16181d',
+              boxShadow: activeTab === tab ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+              transition: 'all 0.15s',
+            }}
           >
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            className={inputClass}
-            style={{ ...inputStyle, ...inputFocusStyle }}
-            onFocus={() => setOwlState('watching')}
-            onBlur={() => setOwlState('idle')}
-          />
-          {state?.errors?.email?.map((e) => (
-            <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
-          ))}
-        </div>
+            {tab === 'email' ? 'Email' : 'Phone'}
+          </button>
+        ))}
+      </div>
 
-        {/* Password */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
+      {/* Email tab */}
+      {activeTab === 'email' && (
+        <form
+          action={action}
+          onSubmit={() => setAuthError(null)}
+          className="space-y-4"
+        >
+          <div>
             <label
-              htmlFor="password"
-              className="block text-xs font-medium uppercase tracking-widest"
+              htmlFor="email"
+              className="block text-xs font-medium uppercase tracking-widest mb-1"
               style={{ color: 'rgba(22,24,29,0.65)' }}
             >
-              Password
+              Email
             </label>
-            <a
-              href="/forgot-password"
-              className="text-xs hover:underline"
-              style={{ color: 'rgba(22,24,29,0.55)' }}
-            >
-              Forgot password?
-            </a>
-          </div>
-          <div className="relative mt-1">
             <input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
               required
-              className="block w-full rounded-lg border px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 transition-colors"
+              className={inputClass}
               style={{ ...inputStyle, ...inputFocusStyle }}
-              onFocus={() => setOwlState('covering')}
+              onFocus={() => setOwlState('watching')}
               onBlur={() => setOwlState('idle')}
             />
-            <button
-              type="button"
-              onClick={togglePassword}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded transition-opacity hover:opacity-70 focus:outline-none"
-              style={{ color: 'rgba(22,24,29,0.45)' }}
-            >
-              <span key={eyeKey} className="eye-slice-in block">
-                {showPassword ? <EyeOpen /> : <EyeClosed />}
-              </span>
-            </button>
+            {state?.errors?.email?.map((e) => (
+              <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
+            ))}
           </div>
-          {state?.errors?.password?.map((e) => (
-            <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
-          ))}
-        </div>
 
-        {/* Wrapper div gives us a getBoundingClientRect target for wipe origin. */}
-        <div ref={btnWrapperRef}>
-          <GalaxyButton pending={pending} label="Sign in" pendingLabel="Signing in…" />
-        </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label
+                htmlFor="password"
+                className="block text-xs font-medium uppercase tracking-widest"
+                style={{ color: 'rgba(22,24,29,0.65)' }}
+              >
+                Password
+              </label>
+              <a
+                href="/forgot-password"
+                className="text-xs hover:underline"
+                style={{ color: 'rgba(22,24,29,0.55)' }}
+              >
+                Forgot password?
+              </a>
+            </div>
+            <div className="relative mt-1">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                className="block w-full rounded-lg border px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 transition-colors"
+                style={{ ...inputStyle, ...inputFocusStyle }}
+                onFocus={() => setOwlState('covering')}
+                onBlur={() => setOwlState('idle')}
+              />
+              <button
+                type="button"
+                onClick={togglePassword}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded transition-opacity hover:opacity-70 focus:outline-none"
+                style={{ color: 'rgba(22,24,29,0.45)' }}
+              >
+                <span key={eyeKey} className="eye-slice-in block">
+                  {showPassword ? <EyeOpen /> : <EyeClosed />}
+                </span>
+              </button>
+            </div>
+            {state?.errors?.password?.map((e) => (
+              <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
+            ))}
+          </div>
 
-        {authError && (
-          <p role="alert" className="mt-2 text-sm" style={{ color: '#dc2626' }}>
-            {authError}
-          </p>
-        )}
-      </form>
+          <div ref={btnWrapperRef}>
+            <GalaxyButton pending={pending} label="Sign in" pendingLabel="Signing in…" />
+          </div>
+
+          {authError && (
+            <p role="alert" className="mt-2 text-sm" style={{ color: '#dc2626' }}>
+              {authError}
+            </p>
+          )}
+        </form>
+      )}
+
+      {/* Phone tab */}
+      {activeTab === 'phone' && (
+        <>
+          {phoneStep === 'phone' ? (
+            <form
+              action={sendAction}
+              onSubmit={() => setSendError(null)}
+              className="space-y-4"
+            >
+              <div>
+                <label
+                  htmlFor="phone"
+                  className="block text-xs font-medium uppercase tracking-widest mb-1"
+                  style={{ color: 'rgba(22,24,29,0.65)' }}
+                >
+                  Mobile Number
+                </label>
+                <div className="flex mt-1">
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0 0.75rem',
+                      background: '#dde0e5',
+                      borderRadius: '0.5rem 0 0 0.5rem',
+                      border: '1px solid rgba(0,0,0,0.2)',
+                      borderRight: 'none',
+                      fontSize: '0.875rem',
+                      color: 'rgba(22,24,29,0.7)',
+                      flexShrink: 0,
+                      userSelect: 'none',
+                    }}
+                  >
+                    +91
+                  </span>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="9876543210"
+                    required
+                    className="block w-full rounded-l-none rounded-r-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors"
+                    style={{ ...inputStyle, ...inputFocusStyle, borderLeft: 'none' }}
+                    onFocus={() => setOwlState('watching')}
+                    onBlur={() => setOwlState('idle')}
+                  />
+                </div>
+                {sendState?.errors?.phone?.map((e) => (
+                  <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
+                ))}
+              </div>
+
+              <div ref={btnWrapperRef}>
+                <GalaxyButton pending={sendPending} label="Send OTP" pendingLabel="Sending…" />
+              </div>
+
+              {sendError && (
+                <p role="alert" className="mt-2 text-sm" style={{ color: '#dc2626' }}>
+                  {sendError}
+                </p>
+              )}
+            </form>
+          ) : (
+            <form
+              action={verifyAction}
+              onSubmit={() => setVerifyError(null)}
+              className="space-y-4"
+            >
+              <input type="hidden" name="phone" value={phoneNumber} />
+
+              <div>
+                <p className="text-sm mb-3" style={{ color: 'rgba(22,24,29,0.7)' }}>
+                  Code sent to{' '}
+                  <strong style={{ color: '#16181d' }}>
+                    {phoneNumber.replace(/^\+91/, '+91 ')}
+                  </strong>
+                  .{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setPhoneStep('phone'); setPhoneNumber('') }}
+                    className="underline"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 'inherit', color: '#16181d', padding: 0 }}
+                  >
+                    Change
+                  </button>
+                </p>
+                <label
+                  htmlFor="token"
+                  className="block text-xs font-medium uppercase tracking-widest mb-1"
+                  style={{ color: 'rgba(22,24,29,0.65)' }}
+                >
+                  Verification Code
+                </label>
+                <input
+                  id="token"
+                  name="token"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  placeholder="000000"
+                  required
+                  className={inputClass}
+                  style={{ ...inputStyle, ...inputFocusStyle, letterSpacing: '0.3em', textAlign: 'center', fontSize: '1.25rem' }}
+                  onFocus={() => setOwlState('watching')}
+                  onBlur={() => setOwlState('idle')}
+                />
+                {verifyState?.errors?.token?.map((e) => (
+                  <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
+                ))}
+              </div>
+
+              <div ref={btnWrapperRef}>
+                <GalaxyButton pending={verifyPending} label="Verify & Sign in" pendingLabel="Verifying…" />
+              </div>
+
+              {verifyError && (
+                <p role="alert" className="mt-2 text-sm" style={{ color: '#dc2626' }}>
+                  {verifyError}
+                </p>
+              )}
+            </form>
+          )}
+        </>
+      )}
 
       {/* Divider */}
       <div className="relative">
@@ -212,11 +384,6 @@ export default function LoginForm() {
         </a>
       </p>
 
-      {/*
-       * Sibling of <form>, not a child — position:fixed means DOM placement
-       * doesn't affect layout, but keeping it outside the form avoids any
-       * stacking-context or transform-clipping surprises from the form card.
-       */}
       <GalaxyWipe
         active={wipeActive}
         originX={wipeOrigin.x}

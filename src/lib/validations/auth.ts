@@ -92,3 +92,57 @@ export type VerifyOtpState =
       success?: boolean
     }
   | undefined
+
+// Indian mobile: +91 followed by 10 digits starting with 6–9
+export const PhoneSchema = z.object({
+  phone: z
+    .string()
+    .regex(/^\+91[6-9]\d{9}$/, { error: 'Enter a valid 10-digit Indian mobile number.' }),
+})
+
+export const PhoneSignupSchema = z.object({
+  username: z
+    .string()
+    .min(3, { error: 'Username must be at least 3 characters.' })
+    .max(20, { error: 'Username must be 20 characters or fewer.' })
+    .regex(/^[a-zA-Z0-9_]+$/, {
+      error: 'Username can only contain letters, numbers, and underscores.',
+    })
+    .trim(),
+  display_name: z
+    .string()
+    .min(2, { error: 'Display name must be at least 2 characters.' })
+    .max(50, { error: 'Display name must be 50 characters or fewer.' })
+    .trim(),
+  phone: z
+    .string()
+    .regex(/^\+91[6-9]\d{9}$/, { error: 'Enter a valid 10-digit Indian mobile number.' }),
+})
+
+export const PhoneOtpSchema = z.object({
+  phone: z.string().regex(/^\+91[6-9]\d{9}$/),
+  token: z
+    .string()
+    .regex(/^\d{6}$/, { error: 'Enter the 6-digit code sent to your phone.' }),
+})
+
+export type PhoneOtpSendState =
+  | {
+      errors?: {
+        phone?: string[]
+        username?: string[]
+        display_name?: string[]
+      }
+      message?: string
+      success?: boolean
+      phone?: string
+    }
+  | undefined
+
+export type PhoneOtpVerifyState =
+  | {
+      errors?: { token?: string[] }
+      message?: string
+      success?: boolean
+    }
+  | undefined
