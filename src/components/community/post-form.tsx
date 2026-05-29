@@ -72,10 +72,6 @@ type FileEntry = {
   originalSize: number
   compressedSize?: number
   resolvedMime: string
-  /** Populated only while rasterizing a large PDF */
-  compressionPage?: number
-  compressionTotal?: number
-  compressionAttempt?: number
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -136,17 +132,15 @@ async function validateFile(
     }
   }
 
-  // ── Size check — always a separate branch; never shows as format error ──
-  // PDFs over 10 MB will be rasterized at submit time; they pass validation here.
-  // Other non-compressible types are hard-blocked.
-  const isCompressible =
-    COMPRESSIBLE_IMAGE_TYPES.has(resolvedMime) || resolvedMime === 'application/pdf'
-
-  if (!isCompressible && file.size > MAX_COMMUNITY_FILE_SIZE) {
-    const mb = (file.size / 1024 / 1024).toFixed(2)
+  // ── Size check ───────────────────────────────────────────────────────────
+  if (file.size > MAX_COMMUNITY_FILE_SIZE) {
+    const mb = (file.size / 1024 / 1024).toFixed(1)
+    const hint = resolvedMime === 'application/pdf'
+      ? ` Compress it first at ilovepdf.com.`
+      : ''
     return {
       status: 'size-error',
-      error: `File is ${mb} MB — exceeds the 10 MB limit.`,
+      error: `File is ${mb} MB — exceeds the 10 MB limit.${hint}`,
       resolvedMime,
     }
   }
@@ -167,85 +161,14 @@ async function compressImage(file: File): Promise<File> {
   return c.size < file.size ? c : file
 }
 
-// ── PDF rasterization via Web Worker ─────────────────────────
-//
-// Only called for PDFs OVER 10 MB.  Smaller PDFs pass through untouched.
-// The worker renders each page to an OffscreenCanvas → JPEG, then rebuilds
-// a PDF from the images using pdf-lib.  Text becomes non-selectable
-// (rasterised), but the file will be well under the size limit.
-
-type PdfProgressCb = (page: number, total: number, attemptIndex: number) => void
-
-function compressPdfRasterize(file: File, onProgress: PdfProgressCb): Promise<File> {
-  return new Promise<File>((resolve, reject) => {
-    // webpack recognises the `new URL(literal, import.meta.url)` pattern and
-    // emits the worker file as a separate static chunk.
-    const worker = new Worker(
-      new URL('../../workers/pdf-compress.worker.ts', import.meta.url),
-      { type: 'module' },
-    )
-
-    const id = crypto.randomUUID()
-
-    // Safety net: 5-minute wall-clock timeout for very large PDFs.
-    const timeout = setTimeout(() => {
-      worker.terminate()
-      reject(new Error('Compression timed out — file may be too large or complex.'))
-    }, 5 * 60 * 1_000)
-
-    worker.onmessage = (e: MessageEvent) => {
-      const msg = e.data as {
-        type: string; id: string; page?: number; total?: number
-        attemptIndex?: number; buffer?: ArrayBuffer; message?: string
-      }
-      if (msg.id !== id) return
-
-      if (msg.type === 'progress') {
-        onProgress(msg.page!, msg.total!, msg.attemptIndex!)
-      } else if (msg.type === 'done') {
-        clearTimeout(timeout)
-        worker.terminate()
-        const blob = new Blob([msg.buffer!], { type: 'application/pdf' })
-        resolve(new File([blob], file.name, { type: 'application/pdf' }))
-      } else if (msg.type === 'error') {
-        clearTimeout(timeout)
-        worker.terminate()
-        reject(new Error(msg.message))
-      }
-    }
-
-    worker.onerror = (e: ErrorEvent) => {
-      clearTimeout(timeout)
-      worker.terminate()
-      reject(new Error(e.message ?? 'PDF compression worker crashed.'))
-    }
-
-    file.arrayBuffer()
-      .then((buf) => worker.postMessage({ type: 'compress', id, buffer: buf }, [buf]))
-      .catch(reject)
-  })
-}
-
 // ── Dispatch to the right compressor ─────────────────────────
 
-async function compressFile(
-  file: File,
-  resolvedMime: string,
-  onPdfProgress: PdfProgressCb,
-): Promise<File> {
-  // Images: use browser-image-compression (already fast, runs in its own worker)
+async function compressFile(file: File, resolvedMime: string): Promise<File> {
+  // Images: use browser-image-compression
   if (COMPRESSIBLE_IMAGE_TYPES.has(resolvedMime)) {
     return compressImage(file).catch(() => file)
   }
-
-  // PDFs ≤ 10 MB: pass through untouched — no rasterization needed.
-  // PDFs > 10 MB: rasterize to bring below the upload limit.
-  if (resolvedMime === 'application/pdf') {
-    if (file.size <= MAX_COMMUNITY_FILE_SIZE) return file
-    return compressPdfRasterize(file, onPdfProgress)
-  }
-
-  // DOCX / XLSX / PPTX / TXT / GIF: no client-side compression.
+  // PDF / DOCX / XLSX / PPTX / TXT / GIF: pass through
   return file
 }
 
@@ -354,14 +277,9 @@ export function PostForm() {
       setFileEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, ...p } : e)))
 
     try {
-      patch({ status: 'compressing', compressionPage: undefined, compressionTotal: undefined })
+      patch({ status: 'compressing' })
 
-      const compressed = await compressFile(
-        entry.file,
-        entry.resolvedMime,
-        (page, total, attemptIndex) =>
-          patch({ compressionPage: page, compressionTotal: total, compressionAttempt: attemptIndex }),
-      )
+      const compressed = await compressFile(entry.file, entry.resolvedMime)
 
       const compressedMime = compressed.type || entry.resolvedMime
 
@@ -507,15 +425,6 @@ export function PostForm() {
         return <span className="text-red-500">{e.error}</span>
 
       case 'compressing':
-        if (e.compressionPage !== undefined && e.compressionTotal !== undefined) {
-          const attempt = e.compressionAttempt !== undefined ? e.compressionAttempt + 1 : 1
-          return (
-            <span className="text-muted-foreground animate-pulse">
-              Rasterizing page {e.compressionPage} of {e.compressionTotal}
-              {attempt > 1 ? ` (pass ${attempt})` : ''}…
-            </span>
-          )
-        }
         return <span className="text-muted-foreground animate-pulse">Compressing…</span>
 
       case 'uploading':
@@ -641,15 +550,6 @@ export function PostForm() {
                     <p className="truncate font-medium text-foreground">{entry.file.name}</p>
                     <p className="text-xs mt-0.5">{statusNode(entry)}</p>
 
-                    {/* Rasterisation warning for large PDFs */}
-                    {entry.resolvedMime === 'application/pdf' &&
-                      entry.originalSize > MAX_COMMUNITY_FILE_SIZE &&
-                      entry.status === 'valid' && (
-                        <p className="text-xs mt-0.5 text-amber-600 dark:text-amber-400">
-                          Large PDF — will be rasterised to fit under 10 MB.
-                          Text will become non-selectable in the uploaded version.
-                        </p>
-                      )}
                   </div>
 
                   {/* Remove button — hidden while this entry is actively processing */}
