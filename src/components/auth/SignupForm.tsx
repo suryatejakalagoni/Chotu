@@ -229,7 +229,7 @@ export default function SignupForm() {
           </label>
           <input
             id="email" name="email" type="email"
-            autoComplete="email"
+            autoComplete="off"
             placeholder="you@college.edu"
             className={inputClass} style={{ ...inputStyle, ...inputFocusStyle }}
             onFocus={() => setOwlState('watching')}
