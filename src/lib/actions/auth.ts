@@ -74,32 +74,51 @@ export async function signUp(
     return { message: 'Too many attempts. Please try again in 15 minutes.' }
   }
 
+  const rawPhone = String(formData.get('phone') ?? '').replace(/\s/g, '')
+  const normalizedPhone = rawPhone
+    ? rawPhone.startsWith('+91') ? rawPhone : `+91${rawPhone}`
+    : undefined
+
   const validated = SignupSchema.safeParse({
-    username: formData.get('username'),
+    username:     formData.get('username'),
     display_name: formData.get('display_name'),
-    email: formData.get('email'),
-    password: formData.get('password'),
+    email:        String(formData.get('email') ?? '').trim() || undefined,
+    phone:        normalizedPhone,
+    password:     formData.get('password'),
   })
 
   if (!validated.success) {
-    return { errors: validated.error.flatten().fieldErrors }
+    return { errors: validated.error.flatten().fieldErrors as NonNullable<SignupFormState>['errors'] }
   }
 
-  const { username, display_name, email, password } = validated.data
+  const { username, display_name, email, phone, password } = validated.data
   const supabase = await createClient()
 
+  if (email) {
+    // Email signup — phone (if any) can be linked later via Settings
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { username, display_name } },
+    })
+    if (error) {
+      console.error('[signUp email]', error.message)
+      return { message: 'Could not create account. Please try again.' }
+    }
+    return { success: true }
+  }
+
+  // Phone-only signup — no email, use phone + password
   const { error } = await supabase.auth.signUp({
-    email,
+    phone: phone!,
     password,
     options: { data: { username, display_name } },
   })
-
   if (error) {
-    console.error('[signUp]', error.message)
+    console.error('[signUp phone]', error.message)
     return { message: 'Could not create account. Please try again.' }
   }
-
-  return { success: true }
+  return { success: true, phoneOnly: true }
 }
 
 export async function logIn(
@@ -114,27 +133,42 @@ export async function logIn(
   }
 
   const validated = LoginSchema.safeParse({
-    email: formData.get('email'),
-    password: formData.get('password'),
+    identifier: formData.get('identifier'),
+    password:   formData.get('password'),
   })
 
   if (!validated.success) {
     return { errors: validated.error.flatten().fieldErrors }
   }
 
-  const { email, password } = validated.data
+  const { identifier, password } = validated.data
 
-  const locked = await isAccountLocked(email)
+  // Detect phone: no @, only digits (and optional +/spaces)
+  const digits   = identifier.replace(/\D/g, '')
+  const isPhone  = !identifier.includes('@') && digits.length >= 10
+  const phone    = isPhone
+    ? (identifier.startsWith('+91') ? identifier : `+91${digits.slice(-10)}`)
+    : null
+  const email    = isPhone ? undefined : identifier
+
+  if (isPhone && !/^\+91[6-9]\d{9}$/.test(phone!)) {
+    return { errors: { identifier: ['Enter a valid email or 10-digit mobile number.'] } }
+  }
+
+  const key = isPhone ? phone! : email!
+  const locked = await isAccountLocked(key)
   if (locked) {
     return { message: 'Too many failed attempts. Please try again in 15 minutes.' }
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { error } = await supabase.auth.signInWithPassword(
+    isPhone ? { phone: phone!, password } : { email: email!, password }
+  )
 
   if (error) {
     console.error('[logIn]', error.message)
-    await recordLoginAttempt(email, ip)
+    await recordLoginAttempt(key, ip)
     return { message: 'Invalid credentials.' }
   }
 
