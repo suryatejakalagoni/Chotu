@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { hasGoogleIntegration } from '@/lib/google-auth'
 import { GoogleCalendarSection } from '@/components/settings/google-calendar-section'
+import { AccountSection } from '@/components/settings/account-section'
 
 export const metadata = { title: 'Settings — Chotu' }
 
@@ -55,9 +56,20 @@ export default async function SettingsPage({
 
   const isConnected = await hasGoogleIntegration(user.id)
 
+  const providers: string[] = user.app_metadata?.providers ?? [user.app_metadata?.provider ?? 'email']
+  const isGoogleUser = providers.includes('google') && !providers.includes('email')
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 space-y-10">
       <h1 className="text-2xl font-bold">Settings</h1>
+
+      {/* Account */}
+      <AccountSection
+        email={user.email ?? null}
+        phone={user.phone ?? null}
+        emailVerified={!!user.email_confirmed_at}
+        isGoogleUser={isGoogleUser}
+      />
 
       {/* Google Calendar */}
       <GoogleCalendarSection
