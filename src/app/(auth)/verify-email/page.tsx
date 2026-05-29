@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { resendVerification } from '@/lib/actions/auth'
 
@@ -6,9 +7,14 @@ export const metadata: Metadata = { title: 'Verify email — CHOTU' }
 
 export default async function VerifyEmailPage() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Phone-only users have no email — send them straight to login
+  if (user && !user.email && user.phone) {
+    redirect('/login')
+  }
+
+  const email = user?.email || ''
 
   return (
     <div className="text-center space-y-4">
@@ -40,7 +46,7 @@ export default async function VerifyEmailPage() {
       <p className="text-sm" style={{ color: '#9ca3af' }}>
         We sent a confirmation link to{' '}
         <span className="font-medium" style={{ color: '#F5F5F0' }}>
-          {user?.email ?? 'your email'}
+          {email || 'your email'}
         </span>
         . Click it to activate your account.
       </p>
@@ -49,7 +55,7 @@ export default async function VerifyEmailPage() {
         Didn&apos;t get it? Check your spam folder.
       </p>
 
-      {user && (
+      {user && email && (
         <form action={resendVerification}>
           <button
             type="submit"
@@ -61,10 +67,17 @@ export default async function VerifyEmailPage() {
         </form>
       )}
 
-      <div className="pt-2">
+      <div className="pt-2 space-y-2">
         <a
           href="/login"
-          className="text-sm transition-colors hover:underline"
+          className="block text-sm font-medium hover:underline"
+          style={{ color: '#F5A623' }}
+        >
+          Already verified? Sign in
+        </a>
+        <a
+          href="/login"
+          className="block text-sm transition-colors hover:underline"
           style={{ color: '#6b7280' }}
         >
           Back to log in
