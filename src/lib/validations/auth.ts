@@ -55,9 +55,11 @@ export type SignupFormState =
       }
       message?: string
       success?: boolean
-      // true when signed up with phone+password — need OTP verification step
+      // true when signed up with phone+password
       phoneOnly?: boolean
       phone?: string
+      // true when phone confirmations are disabled — account created immediately, no OTP
+      confirmed?: boolean
     }
   | undefined
 

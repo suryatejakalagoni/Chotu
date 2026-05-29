@@ -85,10 +85,17 @@ export default function SignupForm() {
 
   useEffect(() => {
     if (!state?.success) return
-    if (state.phoneOnly && state.phone) {
-      // Phone-only signup — Supabase sent an OTP, show the verification step
-      setOtpPhone(state.phone)
-      setPhoneOtpStep(true)
+    if (state.phoneOnly) {
+      if (state.confirmed) {
+        // Phone confirmations OFF — account created & session set immediately, no OTP needed
+        armWipe('/dashboard')
+      } else if (state.phone) {
+        // Phone confirmations ON — Supabase sent OTP, show verification step
+        setOtpPhone(state.phone)
+        setPhoneOtpStep(true)
+      } else {
+        armWipe('/dashboard')
+      }
     } else {
       // Email signup — go to verify-email page
       armWipe('/verify-email')

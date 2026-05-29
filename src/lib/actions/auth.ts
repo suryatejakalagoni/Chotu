@@ -109,14 +109,19 @@ export async function signUp(
   }
 
   // Phone-only signup — no email, use phone + password
-  const { error } = await supabase.auth.signUp({
+  const { data: phoneData, error: phoneError } = await supabase.auth.signUp({
     phone: phone!,
     password,
     options: { data: { username, display_name } },
   })
-  if (error) {
-    console.error('[signUp phone]', error.message)
+  if (phoneError) {
+    console.error('[signUp phone]', phoneError.message)
     return { message: 'Could not create account. Please try again.' }
+  }
+  // If phone confirmations are disabled in Supabase, a session is returned immediately
+  // and no OTP is sent — skip the OTP step
+  if (phoneData.session) {
+    return { success: true, phoneOnly: true, confirmed: true }
   }
   return { success: true, phoneOnly: true, phone: phone! }
 }
