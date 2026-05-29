@@ -174,6 +174,18 @@ export default function ScrollScene() {
     }
   }, [])
 
+  // ── Preload all feature images so setObject swaps are instant on production ─
+  // On localhost images are served from the local fs (instant). On Vercel CDN
+  // the first visit fetches each PNG over the network. Without preloading,
+  // the GSAP setObject callback swaps img.src before the new image has loaded,
+  // causing a blank frame that reads as a hard cut in the animation.
+  useEffect(() => {
+    FEATURES.forEach(f => {
+      const img = new window.Image()
+      img.src = f.img
+    })
+  }, [])
+
   // ── Phase 2: build timelines + ScrollTriggers, then refresh on asset load ─
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger)
