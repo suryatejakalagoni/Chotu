@@ -330,13 +330,16 @@ export async function updatePassword(
   return { success: true }
 }
 
-export async function sendAddPhoneOtp(
+// Links a phone number directly to the current user's account via admin client.
+// No OTP needed here — ownership is verified when the phone is first used for
+// password recovery (which requires receiving an OTP on that number).
+export async function linkPhoneNumber(
   _prevState: PhoneOtpSendState,
   formData: FormData
 ): Promise<PhoneOtpSendState> {
-  const ip = await getClientIp()
-  const allowed = await checkRateLimit(`phone_otp:${ip}`)
-  if (!allowed) return { message: 'Too many attempts. Try again in 15 minutes.' }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { message: 'Please log in first.' }
 
   const raw = String(formData.get('phone') ?? '').replace(/\s/g, '')
   const phone = raw.startsWith('+91') ? raw : `+91${raw}`
@@ -344,47 +347,17 @@ export async function sendAddPhoneOtp(
   const validated = PhoneSchema.safeParse({ phone })
   if (!validated.success) return { errors: validated.error.flatten().fieldErrors }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { message: 'Please log in first.' }
-
-  // updateUser triggers a 'phone_change' OTP to the new number
-  const { error } = await supabase.auth.updateUser({ phone: validated.data.phone })
-  if (error) {
-    console.error('[sendAddPhoneOtp]', error.message)
-    return { message: 'Could not send verification code. Please try again.' }
-  }
-
-  return { success: true, phone: validated.data.phone }
-}
-
-export async function verifyAddPhoneOtp(
-  _prevState: PhoneOtpVerifyState,
-  formData: FormData
-): Promise<PhoneOtpVerifyState> {
-  const ip = await getClientIp()
-  const allowed = await checkRateLimit(`phone_verify:${ip}`)
-  if (!allowed) return { message: 'Too many attempts. Try again in 15 minutes.' }
-
-  const phone = String(formData.get('phone') ?? '').trim()
-  const token = String(formData.get('token') ?? '').replace(/\D/g, '')
-
-  const validated = PhoneOtpSchema.safeParse({ phone, token })
-  if (!validated.success) return { errors: validated.error.flatten().fieldErrors }
-
-  const supabase = await createClient()
-  const { error } = await supabase.auth.verifyOtp({
+  const admin = createAdminClient()
+  const { error } = await admin.auth.admin.updateUserById(user.id, {
     phone: validated.data.phone,
-    token: validated.data.token,
-    type: 'phone_change',
   })
 
   if (error) {
-    console.error('[verifyAddPhoneOtp]', error.message)
-    return { message: 'Invalid or expired code. Please try again.' }
+    console.error('[linkPhoneNumber]', error.message)
+    return { message: 'Could not save mobile number. Please try again.' }
   }
 
-  return { success: true }
+  return { success: true, phone: validated.data.phone }
 }
 
 export async function sendPasswordChangePhoneOtp(

@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useActionState } from 'react'
 import {
-  sendAddPhoneOtp,
-  verifyAddPhoneOtp,
+  linkPhoneNumber,
   sendPasswordChangePhoneOtp,
   requestPasswordReset,
   verifyResetOtp,
@@ -66,14 +65,11 @@ export function AccountSection({ email, phone, emailVerified, isGoogleUser }: Pr
   const [showCf, setShowCf]       = useState(false)
   const [pwError, setPwError]     = useState<string | null>(null)
 
-  const [addStep, setAddStep]     = useState<'input' | 'otp'>('input')
-  const [addPhone, setAddPhone]   = useState('')
   const [addDone, setAddDone]     = useState(false)
 
   // ── server action states ──────────────────────────────────────────────────
 
-  const [sendAddSt, sendAddAct, sendAddPending]      = useActionState<PhoneOtpSendState, FormData>(sendAddPhoneOtp, undefined)
-  const [verifyAddSt, verifyAddAct, verifyAddPending] = useActionState<PhoneOtpVerifyState, FormData>(verifyAddPhoneOtp, undefined)
+  const [linkPhoneSt, linkPhoneAct, linkPhonePending] = useActionState<PhoneOtpSendState, FormData>(linkPhoneNumber, undefined)
 
   const [sendPwEmailSt, sendPwEmailAct, sendPwEmailPending]    = useActionState<ForgotPasswordState, FormData>(requestPasswordReset, undefined)
   const [verifyPwEmailSt, verifyPwEmailAct, verifyPwEmailPend] = useActionState<VerifyOtpState, FormData>(verifyResetOtp, undefined)
@@ -86,14 +82,10 @@ export function AccountSection({ email, phone, emailVerified, isGoogleUser }: Pr
   // ── effects ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (sendAddSt?.success && sendAddSt.phone) { setAddPhone(sendAddSt.phone); setAddStep('otp') }
-  }, [sendAddSt])
-
-  useEffect(() => {
-    if (!verifyAddSt?.success) return
+    if (!linkPhoneSt?.success) return
     setAddDone(true)
-    setTimeout(() => { setMode(null); setAddDone(false); setAddStep('input'); setAddPhone('') }, 2500)
-  }, [verifyAddSt]) // eslint-disable-line
+    setTimeout(() => { setMode(null); setAddDone(false) }, 2500)
+  }, [linkPhoneSt]) // eslint-disable-line
 
   useEffect(() => { if (sendPwEmailSt?.success   && pwStep === 1) setPwStep(2) }, [sendPwEmailSt])   // eslint-disable-line
   useEffect(() => { if (verifyPwEmailSt?.success && pwStep === 2) { setPwStep(3); setPwOtp('') } }, [verifyPwEmailSt]) // eslint-disable-line
@@ -110,7 +102,7 @@ export function AccountSection({ email, phone, emailVerified, isGoogleUser }: Pr
   }, [updatePwSt]) // eslint-disable-line
 
   const close = () => {
-    setMode(null); setPwStep(1); setPwOtp(''); setAddStep('input'); setAddPhone('')
+    setMode(null); setPwStep(1); setPwOtp('')
     setPwError(null); setPwDone(false); setAddDone(false)
   }
 
@@ -189,12 +181,14 @@ export function AccountSection({ email, phone, emailVerified, isGoogleUser }: Pr
       {mode === 'addPhone' && (
         <div className="rounded-xl border p-4 space-y-4 bg-muted/30">
           <p className="text-sm font-medium">Link a mobile number</p>
-          <p className="text-xs text-muted-foreground">We&apos;ll send a 6-digit code to verify it&apos;s yours.</p>
+          <p className="text-xs text-muted-foreground">
+            Your number will be saved to your account and can be used to sign in or recover your password.
+          </p>
 
           {addDone ? (
             <p className="text-sm font-semibold text-emerald-600">✓ Mobile number linked successfully!</p>
-          ) : addStep === 'input' ? (
-            <form action={sendAddAct} className="space-y-3">
+          ) : (
+            <form action={linkPhoneAct} className="space-y-3">
               <div>
                 <label className="block text-xs font-medium uppercase tracking-widest text-muted-foreground mb-1">
                   Mobile Number
@@ -209,46 +203,16 @@ export function AccountSection({ email, phone, emailVerified, isGoogleUser }: Pr
                     className="block w-full rounded-l-none rounded-r-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-muted/50"
                   />
                 </div>
-                {sendAddSt?.errors?.phone?.map(e => (
+                {linkPhoneSt?.errors?.phone?.map(e => (
                   <p key={e} className="mt-1 text-xs text-destructive">{e}</p>
                 ))}
-                {sendAddSt?.message && <p className="mt-1 text-xs text-destructive">{sendAddSt.message}</p>}
+                {linkPhoneSt?.message && <p className="mt-1 text-xs text-destructive">{linkPhoneSt.message}</p>}
               </div>
               <button
-                type="submit" disabled={sendAddPending}
+                type="submit" disabled={linkPhonePending}
                 className="w-full rounded-lg py-2.5 text-sm font-semibold bg-foreground text-background hover:opacity-80 transition-opacity disabled:opacity-50"
               >
-                {sendAddPending ? 'Sending…' : 'Send verification code'}
-              </button>
-            </form>
-          ) : (
-            <form action={verifyAddAct} className="space-y-3">
-              <input type="hidden" name="phone" value={addPhone} />
-              <div>
-                <p className="text-sm mb-2 text-muted-foreground">
-                  Code sent to <strong className="text-foreground">{fmtPhone(addPhone)}</strong>.{' '}
-                  <button type="button" onClick={() => setAddStep('input')} className="underline text-foreground text-xs">
-                    Change
-                  </button>
-                </p>
-                <label className="block text-xs font-medium uppercase tracking-widest text-muted-foreground mb-1">
-                  Verification Code
-                </label>
-                <input
-                  name="token" type="tel" inputMode="numeric"
-                  maxLength={6} pattern="[0-9]{6}" placeholder="000000" required
-                  className={`${inputCls} text-center tracking-[0.3em] text-lg`}
-                />
-                {verifyAddSt?.errors?.token?.map(e => (
-                  <p key={e} className="mt-1 text-xs text-destructive">{e}</p>
-                ))}
-                {verifyAddSt?.message && <p className="mt-1 text-xs text-destructive">{verifyAddSt.message}</p>}
-              </div>
-              <button
-                type="submit" disabled={verifyAddPending}
-                className="w-full rounded-lg py-2.5 text-sm font-semibold bg-foreground text-background hover:opacity-80 transition-opacity disabled:opacity-50"
-              >
-                {verifyAddPending ? 'Verifying…' : 'Verify & Link'}
+                {linkPhonePending ? 'Saving…' : 'Save mobile number'}
               </button>
             </form>
           )}
