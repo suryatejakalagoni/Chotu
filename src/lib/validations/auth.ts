@@ -55,8 +55,9 @@ export type SignupFormState =
       }
       message?: string
       success?: boolean
-      // true when signed up with phone+password (no email verify needed)
+      // true when signed up with phone+password — need OTP verification step
       phoneOnly?: boolean
+      phone?: string
     }
   | undefined
 

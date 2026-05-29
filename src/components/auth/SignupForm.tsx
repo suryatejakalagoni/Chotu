@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signUp, signInWithGoogle } from '@/lib/actions/auth'
-import { type SignupFormState } from '@/lib/validations/auth'
+import { signUp, signInWithGoogle, verifyPhoneOtp } from '@/lib/actions/auth'
+import { type SignupFormState, type PhoneOtpVerifyState } from '@/lib/validations/auth'
 import { useOwlState } from '@/components/auth/OwlContext'
 import { GalaxyButton } from '@/components/auth/GalaxyButton'
 import { GalaxyWipe } from '@/components/auth/GalaxyWipe'
@@ -50,11 +50,18 @@ function EyeClosed() {
 
 export default function SignupForm() {
   const [state, action, pending] = useActionState<SignupFormState, FormData>(signUp, undefined)
+  const [verifyState, verifyAction, verifyPending] = useActionState<PhoneOtpVerifyState, FormData>(verifyPhoneOtp, undefined)
   const { setOwlState } = useOwlState()
   const [showPassword, setShowPassword] = useState(false)
   const [eyeKey, setEyeKey]             = useState(0)
   const router                          = useRouter()
   const [authError, setAuthError]       = useState<string | null>(null)
+
+  // phone-only signup OTP step
+  const [phoneOtpStep, setPhoneOtpStep] = useState(false)
+  const [otpPhone, setOtpPhone]         = useState('')
+  const [otpValue, setOtpValue]         = useState('')
+  const [otpError, setOtpError]         = useState<string | null>(null)
 
   const btnWrapperRef = useRef<HTMLDivElement>(null)
   const [wipeActive, setWipeActive] = useState(false)
@@ -62,26 +69,111 @@ export default function SignupForm() {
   const wipeArmedRef    = useRef(false)
   const pendingRedirect = useRef('/verify-email')
 
-  useEffect(() => { setAuthError(state?.message ?? null) }, [state])
-
-  useEffect(() => {
-    if (!state?.success || wipeArmedRef.current) return
+  const armWipe = (redirect: string) => {
+    if (wipeArmedRef.current) return
     wipeArmedRef.current = true
-    // phone-only signup skips email verification
-    pendingRedirect.current = state.phoneOnly ? '/dashboard' : '/verify-email'
+    pendingRedirect.current = redirect
     const rect = btnWrapperRef.current?.getBoundingClientRect()
     setWipeOrigin({
       x: rect && rect.width  > 0 ? rect.left + rect.width  / 2 : window.innerWidth  / 2,
       y: rect && rect.height > 0 ? rect.top  + rect.height / 2 : window.innerHeight / 2,
     })
     setWipeActive(true)
-  }, [state])
+  }
+
+  useEffect(() => { setAuthError(state?.message ?? null) }, [state])
+
+  useEffect(() => {
+    if (!state?.success) return
+    if (state.phoneOnly && state.phone) {
+      // Phone-only signup — Supabase sent an OTP, show the verification step
+      setOtpPhone(state.phone)
+      setPhoneOtpStep(true)
+    } else {
+      // Email signup — go to verify-email page
+      armWipe('/verify-email')
+    }
+  }, [state]) // eslint-disable-line
+
+  useEffect(() => { setOtpError(verifyState?.message ?? null) }, [verifyState])
+  useEffect(() => {
+    if (verifyState?.success) armWipe('/dashboard')
+  }, [verifyState]) // eslint-disable-line
 
   const togglePassword = () => {
     setShowPassword(v => !v)
     setEyeKey(k => k + 1)
   }
 
+  // ── Phone OTP verification step (phone-only signup) ─────────────────────
+  if (phoneOtpStep) {
+    return (
+      <div className="space-y-6">
+        <p className="text-sm" style={{ color: 'rgba(22,24,29,0.65)' }}>
+          We sent a 6-digit code to{' '}
+          <strong style={{ color: '#16181d' }}>
+            {otpPhone.replace(/^\+91/, '+91 ')}
+          </strong>
+          . Enter it below to verify your number.
+        </p>
+
+        <form
+          action={verifyAction}
+          onSubmit={() => setOtpError(null)}
+          className="space-y-4"
+        >
+          <input type="hidden" name="phone" value={otpPhone} />
+          <div>
+            <label htmlFor="token" style={labelStyle}>6-digit code</label>
+            <input
+              id="token" name="token" type="tel"
+              inputMode="numeric" maxLength={6} pattern="[0-9]{6}"
+              placeholder="000000" required autoFocus
+              value={otpValue}
+              onChange={e => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className={inputClass}
+              style={{ ...inputStyle, ...inputFocusStyle, letterSpacing: '0.3em', textAlign: 'center', fontSize: '1.25rem' }}
+              onFocus={() => setOwlState('watching')}
+              onBlur={() => setOwlState('idle')}
+            />
+            {verifyState?.errors?.token?.map(e => (
+              <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
+            ))}
+          </div>
+
+          <div ref={btnWrapperRef}>
+            <GalaxyButton
+              pending={verifyPending}
+              label="Verify & create account"
+              pendingLabel="Verifying…"
+            />
+          </div>
+
+          {otpError && (
+            <p role="alert" className="mt-2 text-sm" style={{ color: '#dc2626' }}>{otpError}</p>
+          )}
+        </form>
+
+        <button
+          type="button"
+          onClick={() => { setPhoneOtpStep(false); setOtpValue(''); setOtpError(null) }}
+          className="w-full text-sm hover:underline"
+          style={{ color: 'rgba(22,24,29,0.55)', background: 'none', border: 'none', cursor: 'pointer' }}
+        >
+          ← Back to sign up
+        </button>
+
+        <GalaxyWipe
+          active={wipeActive}
+          originX={wipeOrigin.x}
+          originY={wipeOrigin.y}
+          onComplete={() => router.push(pendingRedirect.current)}
+        />
+      </div>
+    )
+  }
+
+  // ── Main signup form ──────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <form

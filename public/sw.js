@@ -28,6 +28,9 @@ self.addEventListener('fetch', (event) => {
   // Never intercept Supabase or external API calls
   if (!url.origin.startsWith(self.location.origin)) return
 
+  // Auth callback must always hit the server directly — never cache or offline-fallback it
+  if (url.pathname.startsWith('/auth/')) return
+
   // Next.js static assets — cache-first (they're content-hashed, safe to cache forever)
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(

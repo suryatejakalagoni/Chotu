@@ -118,7 +118,7 @@ export async function signUp(
     console.error('[signUp phone]', error.message)
     return { message: 'Could not create account. Please try again.' }
   }
-  return { success: true, phoneOnly: true }
+  return { success: true, phoneOnly: true, phone: phone! }
 }
 
 export async function logIn(
