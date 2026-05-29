@@ -1,46 +1,29 @@
 import { z } from 'zod'
 
-const passwordSchema = z
-  .string()
-  .min(8, { error: 'Password must be at least 8 characters.' })
-  .regex(/[a-zA-Z]/, { error: 'Password must contain at least one letter.' })
-  .regex(/[0-9]/, { error: 'Password must contain at least one number.' })
+export const SignupSchema = z.object({
+  username: z
+    .string()
+    .min(3, { error: 'Username must be at least 3 characters.' })
+    .max(20, { error: 'Username must be 20 characters or fewer.' })
+    .regex(/^[a-zA-Z0-9_]+$/, {
+      error: 'Username can only contain letters, numbers, and underscores.',
+    })
+    .trim(),
+  display_name: z
+    .string()
+    .min(2, { error: 'Display name must be at least 2 characters.' })
+    .max(50, { error: 'Display name must be 50 characters or fewer.' })
+    .trim(),
+  email: z.email({ error: 'Please enter a valid email address.' }).trim(),
+  password: z
+    .string()
+    .min(8, { error: 'Password must be at least 8 characters.' })
+    .regex(/[a-zA-Z]/, { error: 'Password must contain at least one letter.' })
+    .regex(/[0-9]/, { error: 'Password must contain at least one number.' }),
+})
 
-export const SignupSchema = z
-  .object({
-    username: z
-      .string()
-      .min(3, { error: 'Username must be at least 3 characters.' })
-      .max(20, { error: 'Username must be 20 characters or fewer.' })
-      .regex(/^[a-zA-Z0-9_]+$/, {
-        error: 'Username can only contain letters, numbers, and underscores.',
-      })
-      .trim(),
-    display_name: z
-      .string()
-      .min(2, { error: 'Display name must be at least 2 characters.' })
-      .max(50, { error: 'Display name must be 50 characters or fewer.' })
-      .trim(),
-    // email and phone are both optional — at least one is required (checked below)
-    email: z.string().trim().optional(),
-    phone: z.string().trim().optional(),
-    password: passwordSchema,
-  })
-  .superRefine((d, ctx) => {
-    if (!d.email && !d.phone) {
-      ctx.addIssue({ code: 'custom', message: 'Email or mobile number is required.', path: ['email'] })
-    }
-    if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) {
-      ctx.addIssue({ code: 'custom', message: 'Please enter a valid email address.', path: ['email'] })
-    }
-    if (d.phone && !/^\+91[6-9]\d{9}$/.test(d.phone)) {
-      ctx.addIssue({ code: 'custom', message: 'Enter a valid 10-digit Indian mobile number.', path: ['phone'] })
-    }
-  })
-
-// identifier accepts email or phone — action auto-detects
 export const LoginSchema = z.object({
-  identifier: z.string().min(1, { error: 'Email or mobile number is required.' }).trim(),
+  email: z.email({ error: 'Please enter a valid email address.' }).trim(),
   password: z.string().min(1, { error: 'Password is required.' }),
 })
 
@@ -50,23 +33,17 @@ export type SignupFormState =
         username?: string[]
         display_name?: string[]
         email?: string[]
-        phone?: string[]
         password?: string[]
       }
       message?: string
       success?: boolean
-      // true when signed up with phone+password
-      phoneOnly?: boolean
-      phone?: string
-      // true when phone confirmations are disabled — account created immediately, no OTP
-      confirmed?: boolean
     }
   | undefined
 
 export type LoginFormState =
   | {
       errors?: {
-        identifier?: string[]
+        email?: string[]
         password?: string[]
       }
       message?: string
@@ -123,25 +100,6 @@ export const PhoneSchema = z.object({
     .regex(/^\+91[6-9]\d{9}$/, { error: 'Enter a valid 10-digit Indian mobile number.' }),
 })
 
-export const PhoneSignupSchema = z.object({
-  username: z
-    .string()
-    .min(3, { error: 'Username must be at least 3 characters.' })
-    .max(20, { error: 'Username must be 20 characters or fewer.' })
-    .regex(/^[a-zA-Z0-9_]+$/, {
-      error: 'Username can only contain letters, numbers, and underscores.',
-    })
-    .trim(),
-  display_name: z
-    .string()
-    .min(2, { error: 'Display name must be at least 2 characters.' })
-    .max(50, { error: 'Display name must be 50 characters or fewer.' })
-    .trim(),
-  phone: z
-    .string()
-    .regex(/^\+91[6-9]\d{9}$/, { error: 'Enter a valid 10-digit Indian mobile number.' }),
-})
-
 export const PhoneOtpSchema = z.object({
   phone: z.string().regex(/^\+91[6-9]\d{9}$/),
   token: z
@@ -151,11 +109,7 @@ export const PhoneOtpSchema = z.object({
 
 export type PhoneOtpSendState =
   | {
-      errors?: {
-        phone?: string[]
-        username?: string[]
-        display_name?: string[]
-      }
+      errors?: { phone?: string[] }
       message?: string
       success?: boolean
       phone?: string

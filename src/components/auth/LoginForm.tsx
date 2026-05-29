@@ -9,7 +9,7 @@ import { GalaxyButton } from '@/components/auth/GalaxyButton'
 import { GalaxyWipe } from '@/components/auth/GalaxyWipe'
 
 const inputClass =
-  'block w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors'
+  'mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors'
 
 const inputStyle: React.CSSProperties = {
   background: '#eceef1',
@@ -41,20 +41,15 @@ function EyeClosed() {
 export default function LoginForm() {
   const [state, action, pending] = useActionState<LoginFormState, FormData>(logIn, undefined)
   const { setOwlState } = useOwlState()
-  const [identifier, setIdentifier] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [eyeKey, setEyeKey]             = useState(0)
   const router                          = useRouter()
   const [authError, setAuthError]       = useState<string | null>(null)
 
   const btnWrapperRef = useRef<HTMLDivElement>(null)
-  const [wipeActive, setWipeActive] = useState(false)
-  const [wipeOrigin, setWipeOrigin] = useState({ x: 0, y: 0 })
+  const [wipeActive, setWipeActive]   = useState(false)
+  const [wipeOrigin, setWipeOrigin]   = useState({ x: 0, y: 0 })
   const wipeArmedRef = useRef(false)
-
-  // Detect phone: no @, all digits (possibly with +/spaces), at least 3 digits typed
-  const digits  = identifier.replace(/\D/g, '')
-  const isPhone = identifier.length > 0 && !identifier.includes('@') && /^\+?\d[\d\s]*$/.test(identifier)
 
   useEffect(() => { setAuthError(state?.message ?? null) }, [state])
 
@@ -81,66 +76,27 @@ export default function LoginForm() {
         onSubmit={() => { setAuthError(null); wipeArmedRef.current = false }}
         className="space-y-4"
       >
-        {/* Single adaptive identifier input */}
+        {/* Email */}
         <div>
           <label
-            htmlFor="identifier"
+            htmlFor="email"
             className="block text-xs font-medium uppercase tracking-widest mb-1"
             style={{ color: 'rgba(22,24,29,0.65)' }}
           >
-            Email or mobile number
+            Email
           </label>
-
-          {isPhone ? (
-            /* Phone mode — show +91 prefix */
-            <div className="flex mt-1">
-              <span
-                style={{
-                  display: 'flex', alignItems: 'center', padding: '0 0.75rem',
-                  background: '#dde0e5', borderRadius: '0.5rem 0 0 0.5rem',
-                  border: '1px solid rgba(0,0,0,0.2)', borderRight: 'none',
-                  fontSize: '0.875rem', color: 'rgba(22,24,29,0.7)',
-                  flexShrink: 0, userSelect: 'none',
-                }}
-              >
-                +91
-              </span>
-              <input
-                id="identifier"
-                name="identifier"
-                type="tel"
-                inputMode="numeric"
-                maxLength={10}
-                autoComplete="tel"
-                required
-                value={digits.slice(-10)}
-                onChange={e => setIdentifier(e.target.value)}
-                placeholder="9876543210"
-                className="block w-full rounded-l-none rounded-r-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors"
-                style={{ ...inputStyle, ...inputFocusStyle, borderLeft: 'none' }}
-                onFocus={() => setOwlState('watching')}
-                onBlur={() => setOwlState('idle')}
-              />
-            </div>
-          ) : (
-            /* Email mode */
-            <input
-              id="identifier"
-              name="identifier"
-              type="email"
-              autoComplete="email"
-              required
-              value={identifier}
-              onChange={e => setIdentifier(e.target.value)}
-              placeholder="you@college.edu"
-              className={`mt-1 ${inputClass}`}
-              style={{ ...inputStyle, ...inputFocusStyle }}
-              onFocus={() => setOwlState('watching')}
-              onBlur={() => setOwlState('idle')}
-            />
-          )}
-
-          {state?.errors?.identifier?.map((e) => (
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            className={inputClass}
+            style={{ ...inputStyle, ...inputFocusStyle }}
+            onFocus={() => setOwlState('watching')}
+            onBlur={() => setOwlState('idle')}
+          />
+          {state?.errors?.email?.map((e) => (
             <p key={e} className="mt-1 text-xs" style={{ color: '#dc2626' }}>{e}</p>
           ))}
         </div>
@@ -170,7 +126,7 @@ export default function LoginForm() {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               required
-              className={`${inputClass} pr-10`}
+              className="block w-full rounded-lg border px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 transition-colors"
               style={{ ...inputStyle, ...inputFocusStyle }}
               onFocus={() => setOwlState('covering')}
               onBlur={() => setOwlState('idle')}
