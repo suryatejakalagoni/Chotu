@@ -32,11 +32,14 @@
   pointer-events: none;
 }
 
-@media (max-width: 600px) {
+/* Mobile: text sits between the risen object and the table.
+ * bottom: 20% keeps ~20px clearance above the table top edge.
+ * GSAP applies xPercent:-50 to centre horizontally — no CSS transform needed. */
+@media (max-width: 640px) {
   .landing-feature {
     left: 50%;
     top: auto;
-    bottom: 14%;
+    bottom: 20%;
     text-align: center;
     max-width: 86vw;
   }
@@ -632,4 +635,54 @@
   padding: .75em 2em;
   border-radius: 100px;
   text-decoration: none;
+}
+
+/* ── Mobile overrides for scroll scene ──────────────────────────────
+ *
+ * Three layout fixes for narrow viewports (≤ 640 px):
+ *
+ * 1. lc-table-wrap — wider table so the wooden surface fills the screen
+ *    proportionally rather than looking small on a phone.
+ *
+ * 2. lc-obj-wrap — centred at left:50% so objects rise straight out of
+ *    the drawer centre. On desktop left:40% creates the slight left-lean
+ *    that looks natural with text to the right; on mobile (text below)
+ *    centre is correct.
+ *
+ * 3. lc-title — tighten the bottom clamp so the hero title does not
+ *    overwhelm the table on small screens.
+ * ──────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .lc-table-wrap {
+    width: min(90vw, 620px);
+  }
+
+  .lc-obj-wrap {
+    left: 50%;
+    bottom: 30%;
+  }
+
+  .lc-title {
+    font-size: clamp(44px, 12vw, 200px);
+    top: 24%;
+  }
+
+  .lc-cta {
+    top: 44%;
+    width: min(92vw, 640px);
+  }
+
+  .lc-cta-heading {
+    font-size: clamp(34px, 8vw, 92px);
+  }
+
+  .lc-cta-tagline {
+    font-size: clamp(14px, 3.8vw, 22px);
+  }
+
+  .lc-btn-primary,
+  .lc-btn-outline {
+    font-size: clamp(14px, 4vw, 18px);
+    padding: .7em 1.6em;
+  }
 }

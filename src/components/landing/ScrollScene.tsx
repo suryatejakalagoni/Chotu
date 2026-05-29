@@ -145,17 +145,18 @@ export default function ScrollScene() {
     //   fromTo also animates x, but GSAP composes xPercent + x additively:
     //   translateX(-50%) translateX(30px) → slides in while staying centered.
     //   No axis conflict, no overflow, no clip.
-    const isMobile = window.innerWidth <= 600
+    const isMobile = window.innerWidth <= 640
     const featureCenterProps = isMobile
       ? { xPercent: -50, yPercent: 0 }
       : { xPercent: 0,   yPercent: -50 }
 
     if (reduced) {
       const f = FEATURES[0]
+      const riseY0 = isMobile ? f.riseY * 2.5 : f.riseY
       // xPercent/yPercent: GSAP owns the centering as percentages — never in CSS
       // (see CLAUDE.md 2026-05-24 entry) so GSAP reads its own _gsap cache only.
       gsap.set(title,   { xPercent: -50, yPercent: -50, opacity: 1 })
-      gsap.set(objWrap, { opacity: 1, scale: 1, xPercent: -50, yPercent: f.riseY })
+      gsap.set(objWrap, { opacity: 1, scale: 1, xPercent: -50, yPercent: riseY0 })
       gsap.set(feature, { opacity: 1, ...featureCenterProps })
       gsap.set(tClosed, { opacity: 1 })
       gsap.set(tOpen,   { opacity: 0 })
@@ -205,9 +206,14 @@ export default function ScrollScene() {
       fdEl.textContent = f.desc
       img.src          = f.img
       img.alt          = f.title
-      wrap.style.width = `min(${f.baseW}vw,${f.baseW * 14}px)`
+      // Phone gets 3× on mobile so the chat overlay stays readable;
+      // all other objects get 1.4× to compensate for small vw sizes.
+      const wMult = isMobile ? (f.isPhone ? 3.0 : 1.8) : 1
+      wrap.style.width = `min(${f.baseW * wMult}vw,${f.baseW * 14}px)`
       chat.style.display = f.isPhone ? 'flex' : 'none'
     }
+
+    const isMobile = window.innerWidth <= 640
 
     // ── Reduced-motion path: static, no scrub ────────────────────
     // Initial states were already applied by useIsomorphicLayoutEffect above.
@@ -242,8 +248,10 @@ export default function ScrollScene() {
         },
       })
 
-      // Title fades out at the very start of the scroll
-      master.to(title, { opacity: 0, scale: 0.8, duration: 0.5 }, 0)
+      // Title fades out at the very start of the scroll.
+      // On mobile, leave a ghost (5% opacity) so the top half of the tall
+      // screen doesn't feel barren while objects animate in the lower half.
+      master.to(title, { opacity: isMobile ? 0.05 : 0, scale: 0.8, duration: 0.5 }, 0)
 
       // Build one sub-timeline per feature
       for (const f of FEATURES) {
@@ -251,6 +259,13 @@ export default function ScrollScene() {
 
         // 0. Swap content at start of this segment
         seg.add(() => setObject(f))
+
+        // On mobile, yPercent values are relative to the (small) object height, so
+        // the default riseY numbers barely move objects on a tall phone screen.
+        // Multiply by 2.5 (phone: 2.0) so objects travel well into the upper half.
+        const riseY    = isMobile ? f.riseY * (f.isPhone ? 2.0 : 2.5) : f.riseY
+        const flyZ     = isMobile ? 130 : 260
+        const flyScale = isMobile ? f.flyScale * 0.88 : f.flyScale
 
         // 1. Drawer opens (cross-fade table-closed → table-open)
         seg.to(tClosed, { opacity: 0, duration: 0.4, ease: 'power1.inOut' })
@@ -260,7 +275,7 @@ export default function ScrollScene() {
         seg.fromTo(
           objWrap,
           { opacity: 0, scale: 0.4, yPercent: 25, xPercent: -50, z: 0 },
-          { opacity: 1, scale: 0.7, yPercent: f.riseY * 0.55, duration: 1.0, ease: 'power2.out' },
+          { opacity: 1, scale: 0.7, yPercent: riseY * 0.55, duration: 1.0, ease: 'power2.out' },
         )
 
         // 3. Drawer closes while object keeps rising (overlap)
@@ -268,18 +283,18 @@ export default function ScrollScene() {
         seg.to(tClosed, { opacity: 1, duration: 0.4, ease: 'power1.inOut' }, '<')
 
         // 4. Rise to focus point; feature text fades in
-        seg.to(objWrap, { yPercent: f.riseY, scale: 1, duration: 0.8, ease: 'power2.out' }, '-=0.2')
+        seg.to(objWrap, { yPercent: riseY, scale: 1, duration: 0.8, ease: 'power2.out' }, '-=0.2')
         seg.fromTo(feature, { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.5 }, '-=0.45')
 
         // 5. Hold
         seg.to({}, { duration: 0.5 })
 
-        // 6. Text out, then motion-B: grow toward viewer and fade
+        // 6. Text out, then motion-B: grow toward viewer and fade.
         seg.to(feature, { opacity: 0, x: -20, duration: 0.4 })
         seg.to(objWrap, {
-          z: 260,
-          scale: f.flyScale,
-          yPercent: f.riseY + 35,
+          z: flyZ,
+          scale: flyScale,
+          yPercent: riseY + 35,
           opacity: 0,
           duration: 1.0,
           ease: 'power2.in',
