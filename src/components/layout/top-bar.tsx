@@ -15,7 +15,7 @@ const NAV_LINKS = [
   { href: '/expenses',    label: 'Expenses',    icon: '₹' },
   { href: '/assignments', label: 'Assignments', icon: '✎' },
   { href: '/exams',       label: 'Exams',       icon: '◎' },
-  { href: '/splits',      label: 'Splits',      icon: '⇌' },
+  { href: '/splits',      label: 'Bunk Calc',   icon: '⇌' },
   { href: '/community',   label: 'Community',   icon: '⊕' },
 ]
 

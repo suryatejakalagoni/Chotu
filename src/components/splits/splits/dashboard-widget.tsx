@@ -17,7 +17,7 @@ export async function SplitsDashboardWidget() {
   return (
     <div className="rounded-xl border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-base">Splits</h2>
+        <h2 className="font-semibold text-base">Bunk Calculator</h2>
         <Link
           href="/splits"
           className="text-xs text-primary hover:underline"

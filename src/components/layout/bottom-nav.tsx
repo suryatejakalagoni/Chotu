@@ -9,7 +9,7 @@ const NAV = [
   { href: '/assignments', label: 'Assignments',  Icon: BookOpen },
   { href: '/exams',       label: 'Exams',        Icon: GraduationCap },
   { href: '/expenses',    label: 'Expenses',     Icon: Receipt },
-  { href: '/splits',      label: 'Splits',       Icon: ArrowLeftRight },
+  { href: '/splits',      label: 'Bunk Calc',    Icon: ArrowLeftRight },
   { href: '/community',   label: 'Community',    Icon: Users },
 ]
 
