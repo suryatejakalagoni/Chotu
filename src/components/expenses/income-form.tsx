@@ -1,10 +1,11 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { incomeSchema } from '@/lib/validations/expenses'
-import { addIncome } from '@/lib/actions/expenses'
+import { addIncome, updateIncome } from '@/lib/actions/expenses'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -25,19 +26,23 @@ import {
 import type { Database } from '@/types/database.types'
 
 type Category = Database['public']['Tables']['categories']['Row']
+type Income = Database['public']['Tables']['income']['Row']
 type FormValues = z.infer<typeof incomeSchema>
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   categories: Category[]
+  income?: Income | null
 }
 
 function toDatetimeLocal(iso: string): string {
   return new Date(iso).toISOString().slice(0, 16)
 }
 
-export function IncomeForm({ open, onOpenChange, categories }: Props) {
+export function IncomeForm({ open, onOpenChange, categories, income }: Props) {
+  const isEdit = !!income
+
   const {
     register,
     handleSubmit,
@@ -58,13 +63,36 @@ export function IncomeForm({ open, onOpenChange, categories }: Props) {
     },
   })
 
+  useEffect(() => {
+    if (income) {
+      reset({
+        title: income.title,
+        amount: income.amount,
+        source: income.source ?? '',
+        category_id: income.category_id ?? null,
+        received_at: toDatetimeLocal(income.received_at),
+        notes: income.notes ?? '',
+      })
+    } else {
+      reset({
+        title: '',
+        amount: undefined,
+        source: '',
+        category_id: null,
+        received_at: toDatetimeLocal(new Date().toISOString()),
+        notes: '',
+      })
+    }
+  }, [income, open, reset])
+
   const onSubmit = async (values: FormValues) => {
-    const result = await addIncome(values)
+    const result = isEdit
+      ? await updateIncome(income!.id, values)
+      : await addIncome(values)
     if (result.error) {
       setError('root', { message: result.error })
       return
     }
-    reset()
     onOpenChange(false)
   }
 
@@ -74,7 +102,7 @@ export function IncomeForm({ open, onOpenChange, categories }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Log Income</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit Income' : 'Log Income'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -151,7 +179,7 @@ export function IncomeForm({ open, onOpenChange, categories }: Props) {
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Log Income'}
+              {isSubmitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Log Income'}
             </Button>
           </div>
         </form>

@@ -33,6 +33,7 @@ function formatAmount(amount: number) {
 
 export function IncomeList({ incomes, categories }: Props) {
   const [formOpen, setFormOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<Income | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -47,6 +48,11 @@ export function IncomeList({ incomes, categories }: Props) {
     setDeletingId(null)
   }
 
+  const handleEdit = (inc: Income) => {
+    setEditTarget(inc)
+    setFormOpen(true)
+  }
+
   return (
     <>
       <div className="flex items-center justify-between mb-6">
@@ -59,7 +65,7 @@ export function IncomeList({ incomes, categories }: Props) {
             </p>
           )}
         </div>
-        <Button onClick={() => setFormOpen(true)}>+ Log Income</Button>
+        <Button onClick={() => { setEditTarget(null); setFormOpen(true) }}>+ Log Income</Button>
       </div>
 
       {deleteError && <p className="mb-3 text-sm text-destructive">{deleteError}</p>}
@@ -98,6 +104,13 @@ export function IncomeList({ incomes, categories }: Props) {
                       <Button
                         size="sm"
                         variant="ghost"
+                        onClick={() => handleEdit(inc)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         className="text-destructive hover:text-destructive"
                         disabled={deletingId === inc.id}
                         onClick={() => handleDelete(inc.id)}
@@ -113,7 +126,15 @@ export function IncomeList({ incomes, categories }: Props) {
         </div>
       )}
 
-      <IncomeForm open={formOpen} onOpenChange={setFormOpen} categories={categories} />
+      <IncomeForm
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open)
+          if (!open) setEditTarget(null)
+        }}
+        categories={categories}
+        income={editTarget}
+      />
     </>
   )
 }

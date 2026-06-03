@@ -48,7 +48,7 @@ export async function addExpense(raw: unknown): Promise<ActionResult> {
       category_id: category_id ?? null,
       spent_at: new Date(spent_at).toISOString(),
       payment_method,
-      notes: notes ?? null,
+      notes: notes || null,
     }).select('id').single()
 
     if (error) {
@@ -80,7 +80,7 @@ export async function updateExpense(id: string, raw: unknown): Promise<ActionRes
         category_id: category_id ?? null,
         spent_at: new Date(spent_at).toISOString(),
         payment_method,
-        notes: notes ?? null,
+        notes: notes || null,
       })
       .eq('id', id)
       .eq('user_id', user.id) // belt-and-suspenders; RLS also enforces this
@@ -143,6 +143,41 @@ export async function addIncome(raw: unknown): Promise<ActionResult> {
     if (error) {
       console.error('[addIncome]', error.message)
       return { error: 'Could not save income. Please try again.' }
+    }
+  } catch {
+    return { error: 'Not authenticated.' }
+  }
+
+  revalidatePath('/expenses/income')
+  revalidatePath('/dashboard')
+  return {}
+}
+
+export async function updateIncome(id: string, raw: unknown): Promise<ActionResult> {
+  if (!id) return { error: 'Invalid income entry.' }
+  const parsed = incomeSchema.safeParse(raw)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  try {
+    const { supabase, user } = await getAuthUser()
+    const { title, amount, source, category_id, received_at, notes } = parsed.data
+
+    const { error } = await supabase
+      .from('income')
+      .update({
+        title,
+        amount,
+        source: source || null,
+        category_id: category_id ?? null,
+        received_at: new Date(received_at).toISOString(),
+        notes: notes || null,
+      })
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('[updateIncome]', error.message)
+      return { error: 'Could not update income. Please try again.' }
     }
   } catch {
     return { error: 'Not authenticated.' }
