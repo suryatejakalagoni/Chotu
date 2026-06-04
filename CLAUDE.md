@@ -45,6 +45,106 @@ A PWA for ~64 college classmates in Telangana. Features: assignment tracker, exa
 
 ## Changelog
 
+### 2026-06-03 — Migration repair: remote baseline generated (Prompt B)
+
+All 29 prod tables were hand-built in the SQL Editor — no migration history existed
+(`supabase_migrations.schema_migrations` does not exist on the project). Seven existing
+migration files were patches on a phantom base; they are archived, not deleted.
+A machine-reconstructed baseline and a cross-schema supplement are now the source of truth.
+
+#### Method
+`supabase db dump` requires Docker Desktop (unavailable on this machine), so the baseline
+was reconstructed from `pg_catalog` queries via the Supabase MCP (Option B). The local
+reset (`supabase db reset`) and local↔remote diff are **BLOCKED** until Docker Desktop is
+installed. Once available: `npx supabase db reset --local` should complete cleanly.
+
+#### Files created
+- `supabase/migrations/20260603000000_remote_baseline.sql` — full public schema DDL:
+  6 enums, 6 functions (2 orphaned functions omitted, see note), 29 tables in FK order,
+  65 indexes, RLS ENABLE on all 29 tables, ~90 RLS policies, 13 triggers.
+- `supabase/migrations/20260603000001_baseline_supplement.sql` — cross-schema objects:
+  3 storage buckets (idempotent ON CONFLICT DO NOTHING), 10 storage.objects RLS policies
+  (DROP IF EXISTS + CREATE), pg_cron job `community-post-expiry` (idempotent via
+  `cron.unschedule` + `cron.schedule`), `on_auth_user_created` trigger on `auth.users`.
+- `supabase/seed.sql` — 18 global categories (13 expense + 5 income, UUIDs match prod,
+  ON CONFLICT DO NOTHING).
+
+#### Files archived (not deleted — git history preserved)
+`supabase/migrations_archive/`: all 7 previous patch files moved here.
+
+#### Local reset / diff status
+- **SKIPPED** — Docker Desktop is not installed on this machine.
+- `npx supabase db reset --local` fails with:
+  `error during connect: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`
+- Once Docker is installed: run reset, then
+  `npx supabase db diff --linked --schema public` to verify empty diff.
+
+#### Pre-existing bugs found (not fixed here — need separate investigation)
+1. **Orphaned functions**: `is_split_group_member` and `is_split_share_owner` reference
+   `user_id` on `split_group_members` and `split_shares` respectively — both are dropped
+   columns (attnum 3, not present in the live schema). These functions are not used by
+   any RLS policy, but they exist in prod and would fail at runtime if called. Omitted
+   from the baseline with a comment.
+2. **Stale TypeScript types**: `exams` table has a `location` column in the DB.
+   App code (`ExamCard`, `ExamForm`) and `database.types.ts` reference `venue` and
+   `exam_type` which do not exist in the DB. Run
+   `npx supabase gen types typescript --project-id huhgsomogdujlsqnvqnu --schema public > src/types/database.types.ts`
+   to regenerate. This will likely break existing exam UI code that references `.venue`.
+
+#### Prod migration history reconciliation
+Still deferred to the first real `db push` (e.g. for bunk_* tables). At that point
+Supabase will create `supabase_migrations.schema_migrations` and record the baseline
+timestamp as the starting point. No special action needed now.
+
+---
+
+### 2026-06-03 — Bunk Calculator: pure calculation engine (Prompt 2 of 4)
+
+Pure, dependency-free TypeScript engine that auto-counts classes from the
+timetable + calendar. No Supabase / React / UI / fetching in this layer.
+
+#### Files created
+- `src/lib/bunk/calc.ts` — the engine. Native `Date` only (no date-fns/dayjs).
+- `src/lib/bunk/calc.test.ts` — 8 `node:test` unit tests.
+
+#### Public API (`src/lib/bunk/calc.ts`)
+- Types: `Weekday`, `Slot`, `MissedEntry`, `SemesterConfig`, `BunkInput`, `BunkResult`.
+- `computeBunk(input: BunkInput): BunkResult` — pure function, no I/O, no
+  `Date.now()`. `referenceDate` ('today') is passed in by the caller.
+
+#### Boundary convention
+- Single constant `INCLUDE_TODAY_IN_HELD = true`: `referenceDate` counts as
+  already HELD; `remaining` starts the day AFTER it. Flip the constant to change.
+- A "working day" = date in `[start, end]`, whose weekday has ≥1 slot, not a holiday.
+- `heldSoFar` = working slots in `[start, min(reference, end)]`.
+- `remainingToHorizon` = working slots in `(reference, min(horizon, end)]`
+  (horizon defaults to `semester.end_date`).
+- All date math is UTC-based (`Date.UTC` + 'YYYY-MM-DD' string compares) to avoid
+  local-timezone / DST off-by-one bugs.
+- `missedCount`: only working days inside the held range; identical
+  `(date, slot_id)` pairs de-duplicated; per-date total capped at slots scheduled
+  that weekday; holidays / non-scheduled weekdays / out-of-range ignored.
+- `maxBunk(T) = floor(attendedSoFar + remaining − (T/100)·total)`; RAW value drives
+  status, clamped `0..remaining` for the reported figures.
+- CVR rule: `required_pct = 75` (safe), `floor_pct = 65` (below = detention).
+  status: raw `maxBunk(required) ≥ 0` → `safe`; else `projectedPctIfAttendAll ≥
+  floor` → `condonation`; else `detention`. Engine rounds nothing; callers format.
+
+#### Test runner
+- No unit-test runner existed (only Playwright e2e). Added zero-package
+  `node:test` + `node:assert`. Node 24 strips TS types natively.
+- New script: `npm run test:unit` → `node --test "src/lib/**/*.test.ts"`.
+- `tsconfig.json`: added `allowImportingTsExtensions: true` (valid under
+  `noEmit`) so the test's required `.ts`-extension import type-checks cleanly.
+
+#### Verification
+- `npm run test:unit` → **8 passed, 0 failed** (anchor 83.33%/safe with
+  maxBunkSafe=15, maxBunkFloor=25; partial-day; whole-day cap; holiday reduces
+  held 60→55; detention; condonation; reference-before-start; horizon-before-reference).
+- `tsc --noEmit` → **0 errors**.
+
+---
+
 ### 2026-05-24 — GSAP scroll lag fix: title centering handed to GSAP (commit dc78b2e)
 
 **The rule**: Never put `transform` in a CSS class on an element that GSAP animates.
