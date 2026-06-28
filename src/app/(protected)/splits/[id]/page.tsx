@@ -1,3 +1,8 @@
+// HIDDEN — Splits feature parked. Un-comment the block below to restore.
+import { notFound } from 'next/navigation'
+export default function SplitDetailPage() { return notFound() }
+
+/*
 import type { Metadata } from 'next'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -73,7 +78,6 @@ export default async function SplitDetailPage({ params }: PageProps) {
       </nav>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
-        {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <h1 className="text-xl font-bold">{split.title}</h1>
@@ -101,12 +105,10 @@ export default async function SplitDetailPage({ params }: PageProps) {
           />
         </div>
 
-        {/* Description */}
         {split.description && (
           <p className="text-sm text-muted-foreground">{split.description}</p>
         )}
 
-        {/* Amount summary */}
         <div className="rounded-xl border bg-card p-4 space-y-1">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Total</span>
@@ -126,7 +128,6 @@ export default async function SplitDetailPage({ params }: PageProps) {
           )}
         </div>
 
-        {/* Shares */}
         <div className="space-y-2">
           <h2 className="font-semibold text-sm">Shares</h2>
           {split.shares.map((sh) => (
@@ -163,3 +164,4 @@ export default async function SplitDetailPage({ params }: PageProps) {
     </main>
   )
 }
+*/

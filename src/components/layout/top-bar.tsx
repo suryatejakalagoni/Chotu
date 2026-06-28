@@ -13,6 +13,7 @@ interface TopBarProps {
 const NAV_LINKS = [
   { href: '/dashboard',   label: 'Home',        icon: '⌂' },
   { href: '/expenses',    label: 'Expenses',    icon: '₹' },
+  // { href: '/splits', label: 'Splits', icon: '÷' }, // HIDDEN — feature parked
   { href: '/assignments', label: 'Assignments', icon: '✎' },
   { href: '/exams',       label: 'Exams',       icon: '◎' },
   { href: '/bunk',        label: 'Bunk Calc',   icon: '⇌' },
