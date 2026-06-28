@@ -74,11 +74,6 @@ export function ExamCard({ exam, topicSummary, onEdit }: Props) {
               >
                 {exam.subject}
               </Link>
-              {exam.exam_type && (
-                <span className="text-xs bg-secondary text-secondary-foreground rounded px-1.5 py-0.5">
-                  {exam.exam_type}
-                </span>
-              )}
               <ExamStatusBadge status={exam.status} />
             </div>
 
@@ -89,7 +84,7 @@ export function ExamCard({ exam, topicSummary, onEdit }: Props) {
                   {days === 0 ? 'Today!' : `${days}d left`}
                 </span>
               )}
-              {exam.venue && <span>📍 {exam.venue}</span>}
+              {exam.location && <span>📍 {exam.location}</span>}
             </div>
 
             {/* Topic progress */}

@@ -18,7 +18,7 @@ export function TopicChecklist({ examId, topics }: Props) {
   const [addErr, setAddErr]     = useState<string | null>(null)
   const [isPending, startTrans] = useTransition()
 
-  const revised = topics.filter((t) => t.is_revised).length
+  const revised = topics.filter((t) => t.done).length
   const total   = topics.length
   const pct     = total === 0 ? 0 : Math.round((revised / total) * 100)
 
@@ -33,7 +33,7 @@ export function TopicChecklist({ examId, topics }: Props) {
 
   function handleToggle(topicId: string, currentVal: boolean) {
     startTrans(async () => {
-      await toggleTopic({ id: topicId, is_revised: !currentVal })
+      await toggleTopic({ id: topicId, done: !currentVal })
     })
   }
 
@@ -72,14 +72,14 @@ export function TopicChecklist({ examId, topics }: Props) {
             <input
               type="checkbox"
               className="h-4 w-4 rounded border-gray-300 accent-primary shrink-0"
-              checked={topic.is_revised}
+              checked={topic.done}
               disabled={isPending}
-              onChange={() => handleToggle(topic.id, topic.is_revised)}
+              onChange={() => handleToggle(topic.id, topic.done)}
             />
             <span
-              className={`flex-1 text-sm ${topic.is_revised ? 'line-through text-muted-foreground' : ''}`}
+              className={`flex-1 text-sm ${topic.done ? 'line-through text-muted-foreground' : ''}`}
             >
-              {topic.topic_text}
+              {topic.title}
             </span>
             <button
               type="button"

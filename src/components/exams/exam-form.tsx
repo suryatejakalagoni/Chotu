@@ -78,10 +78,10 @@ export function ExamForm({ open, onOpenChange, exam, examTypes = [] }: Props) {
     if (exam) {
       reset({
         subject:       exam.subject,
-        exam_type:     exam.exam_type ?? '',
+        exam_type:     '',
         exam_at:       toDatetimeLocal(exam.exam_at),
-        venue:         exam.venue ?? '',
-        syllabus_text: exam.syllabus_text ?? '',
+        venue:         exam.location ?? '',
+        syllabus_text: '',
         notes:         exam.notes ?? '',
         status:        exam.status as FormValues['status'],
       })

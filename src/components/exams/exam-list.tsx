@@ -30,7 +30,7 @@ export function ExamList({ exams, topics, examTypes }: Props) {
     (acc, t) => {
       if (!acc[t.exam_id]) acc[t.exam_id] = { total: 0, revised: 0 }
       acc[t.exam_id].total++
-      if (t.is_revised) acc[t.exam_id].revised++
+      if (t.done) acc[t.exam_id].revised++
       return acc
     },
     {},
