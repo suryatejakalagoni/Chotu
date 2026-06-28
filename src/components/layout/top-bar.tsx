@@ -15,7 +15,7 @@ const NAV_LINKS = [
   { href: '/expenses',    label: 'Expenses',    icon: '₹' },
   { href: '/assignments', label: 'Assignments', icon: '✎' },
   { href: '/exams',       label: 'Exams',       icon: '◎' },
-  { href: '/splits',      label: 'Bunk Calc',   icon: '⇌' },
+  { href: '/bunk',        label: 'Bunk Calc',   icon: '⇌' },
   { href: '/community',   label: 'Community',   icon: '⊕' },
 ]
 
@@ -64,6 +64,7 @@ export function TopBar({ isAdmin = false, userName }: TopBarProps) {
   }
 
   function isActive(href: string) {
+    if (!pathname) return false
     if (href === '/dashboard') return pathname === '/dashboard'
     return pathname.startsWith(href)
   }
